@@ -129,7 +129,7 @@ body.modal-open{overflow:hidden}.primary{background:#875020;color:#fff}.secondar
 .sort-select-wrap{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:#615a53;margin:4px 0 14px}
 .sort-select-wrap select{padding:8px 10px;border:1px solid #e3ddd7;border-radius:9px;font-size:13px;background:#fff;color:#221c17}
 .card-temp-closed-detail{color:#b5473c;font-size:13px;margin:2px 0 8px}
-.card-corner-badges{position:absolute;top:0;left:0;display:flex;flex-direction:column;align-items:flex-start;z-index:1}
+.card-corner-badges{position:absolute;top:0;left:0;display:flex;flex-direction:row;flex-wrap:wrap;align-items:flex-start;z-index:1}
 .card-corner-badge{color:#fff;font-weight:700;font-size:11px;padding:4px 10px;border-top-left-radius:14px;border-bottom-right-radius:10px}
 .card-corner-badge-guest{background:#7c5cbf}
 .card-corner-badge-male{background:#3b6fd6}
