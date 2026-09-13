@@ -1,0 +1,950 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>温泉データベース｜管理者ページ</title>
+<style>
+  :root{color-scheme:light}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif;background:#faf7f4;color:#2c2622}
+  header{background:#875020;color:#fff;padding:16px 20px;display:flex;justify-content:space-between;align-items:center}
+  header h1{font-size:16px;margin:0}
+  header button{background:#fff2;border:1px solid #fff5;color:#fff;padding:8px 14px;border-radius:8px;font-size:13px;cursor:pointer}
+  main{max-width:900px;margin:0 auto;padding:20px}
+  .hidden{display:none!important}
+
+  #loginScreen{max-width:360px;margin:80px auto;background:#fff;padding:30px;border-radius:16px;box-shadow:0 6px 20px #0001}
+  #loginScreen h2{margin:0 0 6px;font-size:20px}
+  #loginScreen p{color:#807a74;font-size:13px;margin:0 0 20px}
+  #loginScreen label{display:block;font-size:13px;font-weight:700;margin:14px 0 6px}
+  #loginScreen input{width:100%;padding:12px;border:1px solid #e3ddd7;border-radius:10px;font-size:15px}
+  #loginScreen button{width:100%;margin-top:20px;padding:13px;background:#875020;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer}
+  #loginError{color:#c0392b;font-size:13px;margin-top:10px}
+
+  .tab-bar{display:flex;gap:6px;overflow-x:auto;margin-bottom:20px;border-bottom:1px solid #e6e1dd;padding-bottom:10px}
+  .tab-btn{flex:0 0 auto;background:#f2efed;border:1px solid #e1dcd7;padding:9px 16px;border-radius:99px;font-size:13px;font-weight:700;cursor:pointer;color:#615a53;white-space:nowrap}
+  .tab-btn.active{background:#875020;color:#fff;border-color:#875020}
+
+  .panel{display:none}
+  .panel.active{display:block}
+  .panel h2{font-size:17px;margin:0 0 4px}
+  .panel-desc{color:#807a74;font-size:13px;margin:0 0 16px}
+
+  .card{background:#fff;border:1px solid #eee5df;border-radius:14px;padding:16px;margin-bottom:12px}
+  .card-row{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
+  .card h3{margin:0 0 4px;font-size:16px}
+  .card .meta{font-size:12px;color:#918a83;margin:0 0 8px}
+  .badge{display:inline-block;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:700}
+  .badge-create{background:#e8f4ec;color:#177144}
+  .badge-update{background:#eaf1fb;color:#2c5aa0}
+  .badge-delete{background:#fdecea;color:#c0392b}
+  .badge-pending{background:#fff6df;color:#a9790c}
+  .badge-open{background:#fdecea;color:#c0392b}
+  .badge-resolved{background:#eee;color:#888}
+  .badge-unread{background:#fff6df;color:#a9790c}
+  .badge-read{background:#eee;color:#888}
+
+  .payload-preview{background:#faf7f4;border-radius:10px;padding:10px 12px;font-size:12px;color:#615a53;max-height:160px;overflow-y:auto;white-space:pre-wrap;margin:8px 0}
+  .btn-row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  button.action{padding:8px 16px;border-radius:8px;border:1px solid #ddd;background:#fff;font-size:13px;font-weight:700;cursor:pointer}
+  button.approve{background:#177144;color:#fff;border-color:#177144}
+  button.reject{background:#c0392b;color:#fff;border-color:#c0392b}
+  button.resolve{background:#875020;color:#fff;border-color:#875020}
+
+  .empty{color:#918a83;font-size:13px;padding:20px 0;text-align:center}
+
+  .settings-row{display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid #eee5df;border-radius:14px;padding:16px;margin-bottom:14px}
+  .settings-row div p{margin:0;font-size:13px;color:#807a74}
+  .switch{position:relative;width:50px;height:28px;background:#ddd;border-radius:99px;cursor:pointer;border:none}
+  .switch.on{background:#177144}
+  .switch::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;background:#fff;border-radius:50%;transition:transform .15s}
+  .switch.on::after{transform:translateX(22px)}
+  textarea#maintenanceMessage{width:100%;padding:10px;border:1px solid #e3ddd7;border-radius:10px;font-size:13px;margin-top:8px}
+</style>
+</head>
+<body>
+
+<div id="loginScreen">
+  <h2>♨️ 管理者ログイン</h2>
+  <p>温泉データベースの管理者専用ページです。</p>
+  <label>メールアドレス<input id="loginEmail" type="email" autocomplete="username"></label>
+  <label>パスワード<input id="loginPassword" type="password" autocomplete="current-password"></label>
+  <button id="loginButton" type="button">ログイン</button>
+  <p id="loginError" class="hidden"></p>
+</div>
+
+<div id="dashboard" class="hidden">
+  <header>
+    <h1>♨️ 温泉データベース｜管理者ページ</h1>
+    <button id="logoutButton" type="button">ログアウト</button>
+  </header>
+  <main>
+    <div class="tab-bar">
+      <button type="button" class="tab-btn active" data-panel="pendingPanel">承認待ち<span id="pendingCountBadge"></span></button>
+      <button type="button" class="tab-btn" data-panel="historyPanel">更新履歴</button>
+      <button type="button" class="tab-btn" data-panel="reportsPanel">報告<span id="reportsCountBadge"></span></button>
+      <button type="button" class="tab-btn" data-panel="feedbackPanel">ご意見・アイデア</button>
+      <button type="button" class="tab-btn" data-panel="areasPanel">温泉地追加・編集</button>
+      <button type="button" class="tab-btn" data-panel="deletePanel">施設の削除</button>
+      <button type="button" class="tab-btn" data-panel="settingsPanel">サイト公開設定</button>
+    </div>
+
+    <section id="pendingPanel" class="panel active">
+      <h2>承認待ちの登録・編集・削除</h2>
+      <p class="panel-desc">承認すると、実際に温泉データベースへ反映されます。</p>
+      <div id="pendingList"></div>
+    </section>
+
+    <section id="historyPanel" class="panel">
+      <h2>更新履歴</h2>
+      <p class="panel-desc">承認済みの操作の履歴です（最新50件）。</p>
+      <div id="historyList"></div>
+    </section>
+
+    <section id="reportsPanel" class="panel">
+      <h2>報告一覧</h2>
+      <p class="panel-desc">ユーザーから寄せられた情報の報告です。</p>
+      <div id="reportsList"></div>
+    </section>
+
+    <section id="feedbackPanel" class="panel">
+      <h2>ご意見・アイデア</h2>
+      <p class="panel-desc">ユーザーから寄せられたご意見です。</p>
+      <div id="feedbackList"></div>
+    </section>
+
+    <section id="areasPanel" class="panel">
+      <h2>温泉地追加・編集</h2>
+      <p class="panel-desc">温泉地（エリア）をまとめて、公開サイトの「各地の温泉地まとめ」に表示します。</p>
+
+      <div class="card">
+        <h3 id="areaFormTitle">新しい温泉地を追加</h3>
+        <label style="display:block;font-size:13px;font-weight:700;margin:10px 0 4px">温泉地名</label>
+        <input id="areaName" style="width:100%;padding:10px;border:1px solid #e3ddd7;border-radius:10px;font-size:14px" placeholder="例：玉造温泉">
+        <label style="display:block;font-size:13px;font-weight:700;margin:10px 0 4px">都道府県</label>
+        <select id="areaPrefecture" style="width:100%;padding:10px;border:1px solid #e3ddd7;border-radius:10px;font-size:14px">
+          <option value="">選択してください</option>
+        </select>
+        <label style="display:block;font-size:13px;font-weight:700;margin:10px 0 4px">地方区分（任意・例：東部地方、西部地方、隠岐地方）</label>
+        <input id="areaRegion" style="width:100%;padding:10px;border:1px solid #e3ddd7;border-radius:10px;font-size:14px" placeholder="例：東部地方">
+        <label style="display:block;font-size:13px;font-weight:700;margin:10px 0 4px">地方区分の並び順（数字が小さいほど先に表示）</label>
+        <select id="areaRegionOrder" style="width:100%;padding:10px;border:1px solid #e3ddd7;border-radius:10px;font-size:14px">
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+          <option value="5">5</option>
+          <option value="6">6</option>
+          <option value="7">7</option>
+          <option value="8">8</option>
+          <option value="9">9</option>
+          <option value="10">10</option>
+        </select>
+        <label style="display:block;font-size:13px;font-weight:700;margin:10px 0 4px">市区町村</label>
+        <select id="areaCity" style="width:100%;padding:10px;border:1px solid #e3ddd7;border-radius:10px;font-size:14px">
+          <option value="">先に都道府県を選択してください</option>
+        </select>
+        <label style="display:block;font-size:13px;font-weight:700;margin:10px 0 4px">含める施設（検索して追加）</label>
+        <input id="areaFacilitySearch" style="width:100%;padding:10px;border:1px solid #e3ddd7;border-radius:10px;font-size:14px" placeholder="施設名で検索">
+        <div id="areaFacilitySearchResults"></div>
+        <div id="areaSelectedFacilities" style="margin-top:10px"></div>
+        <div class="btn-row">
+          <button class="action resolve" id="areaSaveButton" type="button">保存する</button>
+          <button class="action" id="areaCancelEditButton" type="button" style="display:none">編集をやめる</button>
+        </div>
+      </div>
+
+      <h3 style="margin-top:24px">登録済みの温泉地</h3>
+      <div id="areasList"></div>
+    </section>
+
+        <section id="deletePanel" class="panel">
+      <h2>施設の削除</h2>
+      <p class="panel-desc">登録済みの施設を検索して、承認フローを介さず直接削除できます。この操作は取り消せません。</p>
+      <input id="deleteFacilitySearch" style="width:100%;padding:10px;border:1px solid #e3ddd7;border-radius:10px;font-size:14px" placeholder="施設名で検索">
+      <div id="deleteFacilityResults" style="margin-top:14px"></div>
+    </section>
+
+    <section id="settingsPanel" class="panel">
+      <h2>サイト公開設定</h2>
+      <p class="panel-desc">オフにすると、一般の方には非公開メッセージだけが表示されます。</p>
+      <div class="settings-row">
+        <div>
+          <b>サイトを公開する</b>
+          <p>オフの間は一覧・登録などが利用できなくなります。</p>
+        </div>
+        <button id="publicToggle" class="switch" type="button"></button>
+      </div>
+      <label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">非公開時に表示するメッセージ（任意）</label>
+      <textarea id="maintenanceMessage" rows="3" placeholder="例：メンテナンス中です。しばらくお待ちください。"></textarea>
+      <div class="btn-row">
+        <button class="action resolve" id="saveSettingsButton" type="button">保存する</button>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="municipalities.js"></script>
+<script>
+(() => {
+  const SUPABASE_URL = window.ONSEN_SUPABASE_CONFIG?.url || "";
+  const SUPABASE_ANON_KEY = window.ONSEN_SUPABASE_CONFIG?.anonKey || "";
+
+  if (!window.supabase || !SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    document.getElementById("loginError").textContent = "Supabaseの設定が見つかりません。config.jsを確認してください。";
+    document.getElementById("loginError").classList.remove("hidden");
+  }
+
+  const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const $ = (id) => document.getElementById(id);
+
+  function escapeHtml(text) {
+    return String(text ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#39;");
+  }
+
+  function formatDate(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    return d.toLocaleString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+  }
+
+  // ---------------------------------------------------------
+  // ログイン
+  // ---------------------------------------------------------
+
+  async function checkSession() {
+    const { data } = await supabaseClient.auth.getSession();
+    if (data?.session) {
+      showDashboard();
+    }
+  }
+
+  $("loginButton").addEventListener("click", async () => {
+    const email = $("loginEmail").value.trim();
+    const password = $("loginPassword").value;
+    $("loginError").classList.add("hidden");
+
+    if (!email || !password) {
+      $("loginError").textContent = "メールアドレスとパスワードを入力してください。";
+      $("loginError").classList.remove("hidden");
+      return;
+    }
+
+    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if (error) {
+      $("loginError").textContent = "ログインできませんでした：" + error.message;
+      $("loginError").classList.remove("hidden");
+      return;
+    }
+    showDashboard();
+  });
+
+  $("logoutButton").addEventListener("click", async () => {
+    await supabaseClient.auth.signOut();
+    location.reload();
+  });
+
+  function showDashboard() {
+    $("loginScreen").classList.add("hidden");
+    $("dashboard").classList.remove("hidden");
+    loadPending();
+    loadHistory();
+    loadReports();
+    loadFeedback();
+    loadSettings();
+    loadAreas();
+    loadAllFacilitiesForAreaSearch();
+  }
+
+  // ---------------------------------------------------------
+  // タブ切り替え
+  // ---------------------------------------------------------
+
+  document.querySelectorAll(".tab-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
+      document.querySelectorAll(".panel").forEach((p) => p.classList.remove("active"));
+      btn.classList.add("active");
+      $(btn.dataset.panel).classList.add("active");
+    });
+  });
+
+  // ---------------------------------------------------------
+  // 承認待ち一覧
+  // ---------------------------------------------------------
+
+  const ACTION_LABELS = { create: "新規登録", update: "編集", delete: "削除" };
+  const ACTION_BADGE_CLASS = { create: "badge-create", update: "badge-update", delete: "badge-delete" };
+
+  function formatDiffValue(v) {
+    if (v === null || v === undefined || v === "") return "（空）";
+    if (Array.isArray(v)) return v.length ? v.join("・") : "（空）";
+    if (typeof v === "object") return JSON.stringify(v);
+    return String(v);
+  }
+
+  async function loadPending() {
+    const { data, error } = await supabaseClient
+      .from("moderation_queue")
+      .select("*")
+      .eq("status", "pending")
+      .order("created_at", { ascending: true });
+
+    const list = $("pendingList");
+    if (error) {
+      list.innerHTML = `<div class="empty">読み込みに失敗しました：${escapeHtml(error.message)}</div>`;
+      return;
+    }
+
+    $("pendingCountBadge").textContent = data.length ? ` (${data.length})` : "";
+
+    if (!data.length) {
+      list.innerHTML = `<div class="empty">承認待ちの申請はありません。</div>`;
+      return;
+    }
+
+    // 編集申請は、現在の登録内容との差分だけを表示するため先に取得しておく
+    const updateTargetIds = [...new Set(data.filter((r) => r.action === "update" && r.target_id).map((r) => r.target_id))];
+    const currentRecords = {};
+    if (updateTargetIds.length) {
+      const { data: currentData } = await supabaseClient
+        .from("onsen_database")
+        .select("*")
+        .in("id", updateTargetIds);
+      (currentData || []).forEach((rec) => {
+        currentRecords[rec.id] = rec;
+      });
+    }
+
+    list.innerHTML = data
+      .map((row) => {
+        let payloadPreview = "";
+        if (row.action === "update" && row.payload) {
+          const current = currentRecords[row.target_id] || {};
+          const diffLines = Object.keys(row.payload)
+            .filter((key) => JSON.stringify(current[key] ?? null) !== JSON.stringify(row.payload[key] ?? null))
+            .map((key) => `${key}：${formatDiffValue(current[key])} → ${formatDiffValue(row.payload[key])}`);
+          payloadPreview = diffLines.length
+            ? `<div class="payload-preview">${escapeHtml(diffLines.join("\n")).slice(0, 1500)}</div>`
+            : `<div class="payload-preview">変更点はありませんでした。</div>`;
+        } else if (row.payload) {
+          payloadPreview = `<div class="payload-preview">${escapeHtml(JSON.stringify(row.payload, null, 1)).slice(0, 1500)}</div>`;
+        }
+
+        return `
+        <div class="card" data-id="${row.id}">
+          <div class="card-row">
+            <div>
+              <span class="badge ${ACTION_BADGE_CLASS[row.action] || ""}">${ACTION_LABELS[row.action] || row.action}</span>
+              <h3>${escapeHtml(row.submitted_name || "（名称未設定）")}</h3>
+            </div>
+          </div>
+          <p class="meta">申請日時：${formatDate(row.created_at)}</p>
+          ${payloadPreview}
+          <div class="btn-row">
+            <button class="action approve" data-approve="${row.id}">承認する</button>
+            <button class="action reject" data-reject="${row.id}">却下する</button>
+          </div>
+        </div>
+      `;
+      })
+      .join("");
+
+    list.querySelectorAll("[data-approve]").forEach((btn) => {
+      btn.addEventListener("click", () => approveRequest(btn.dataset.approve, data));
+    });
+    list.querySelectorAll("[data-reject]").forEach((btn) => {
+      btn.addEventListener("click", () => rejectRequest(btn.dataset.reject));
+    });
+  }
+
+  async function approveRequest(id, currentList) {
+    const row = currentList.find((r) => String(r.id) === String(id));
+    if (!row) return;
+    if (!confirm(`「${row.submitted_name || "この申請"}」を承認します。よろしいですか？`)) return;
+
+    try {
+      let historySummary = "";
+
+      if (row.action === "create") {
+        const { data: inserted, error } = await supabaseClient
+          .from("onsen_database")
+          .insert([row.payload])
+          .select()
+          .single();
+        if (error) throw error;
+        historySummary = `新規登録：${inserted.name || ""}`;
+        await logHistory(inserted.id, inserted.name, "create", historySummary);
+      } else if (row.action === "update") {
+        const { data: updated, error } = await supabaseClient
+          .from("onsen_database")
+          .update(row.payload)
+          .eq("id", row.target_id)
+          .select()
+          .single();
+        if (error) throw error;
+        historySummary = `編集：${updated?.name || row.submitted_name || ""}`;
+        await logHistory(row.target_id, updated?.name || row.submitted_name, "update", historySummary);
+      } else if (row.action === "delete") {
+        const { error } = await supabaseClient.from("onsen_database").delete().eq("id", row.target_id);
+        if (error) throw error;
+        historySummary = `削除：${row.submitted_name || ""}`;
+        await logHistory(row.target_id, row.submitted_name, "delete", historySummary);
+      }
+
+      await supabaseClient
+        .from("moderation_queue")
+        .update({ status: "approved", reviewed_at: new Date().toISOString() })
+        .eq("id", id);
+
+      loadPending();
+      loadHistory();
+    } catch (error) {
+      alert("承認できませんでした：" + error.message);
+    }
+  }
+
+  async function rejectRequest(id) {
+    if (!confirm("この申請を却下します。よろしいですか？")) return;
+    try {
+      await supabaseClient
+        .from("moderation_queue")
+        .update({ status: "rejected", reviewed_at: new Date().toISOString() })
+        .eq("id", id);
+      loadPending();
+    } catch (error) {
+      alert("却下できませんでした：" + error.message);
+    }
+  }
+
+  async function logHistory(onsenId, onsenName, action, summary) {
+    try {
+      await supabaseClient.from("update_history").insert([
+        { onsen_id: onsenId, onsen_name: onsenName, action, summary }
+      ]);
+    } catch (error) {
+      console.error("履歴の記録に失敗:", error);
+    }
+  }
+
+  // ---------------------------------------------------------
+  // 更新履歴
+  // ---------------------------------------------------------
+
+  async function loadHistory() {
+    const { data, error } = await supabaseClient
+      .from("update_history")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    const list = $("historyList");
+    if (error) {
+      list.innerHTML = `<div class="empty">読み込みに失敗しました：${escapeHtml(error.message)}</div>`;
+      return;
+    }
+    if (!data.length) {
+      list.innerHTML = `<div class="empty">まだ履歴がありません。</div>`;
+      return;
+    }
+    list.innerHTML = data
+      .map(
+        (row) => `
+        <div class="card">
+          <span class="badge ${ACTION_BADGE_CLASS[row.action] || ""}">${ACTION_LABELS[row.action] || row.action}</span>
+          <p class="meta">${formatDate(row.created_at)}</p>
+          <p>${escapeHtml(row.summary || "")}</p>
+        </div>
+      `
+      )
+      .join("");
+  }
+
+  // ---------------------------------------------------------
+  // 報告一覧
+  // ---------------------------------------------------------
+
+  async function loadReports() {
+    const { data, error } = await supabaseClient
+      .from("reports")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    const list = $("reportsList");
+    if (error) {
+      list.innerHTML = `<div class="empty">読み込みに失敗しました：${escapeHtml(error.message)}</div>`;
+      return;
+    }
+
+    const openCount = data.filter((r) => r.status === "open").length;
+    $("reportsCountBadge").textContent = openCount ? ` (${openCount})` : "";
+
+    if (!data.length) {
+      list.innerHTML = `<div class="empty">報告はまだありません。</div>`;
+      return;
+    }
+
+    list.innerHTML = data
+      .map(
+        (row) => `
+        <div class="card" data-id="${row.id}">
+          <div class="card-row">
+            <h3>${escapeHtml(row.onsen_name || "（対象施設不明）")}</h3>
+            <span class="badge ${row.status === "open" ? "badge-open" : "badge-resolved"}">${row.status === "open" ? "未対応" : "対応済み"}</span>
+          </div>
+          <p class="meta">${formatDate(row.created_at)}｜理由：${escapeHtml(row.reason || "")}</p>
+          ${row.message ? `<p>${escapeHtml(row.message)}</p>` : ""}
+          ${row.status === "open" ? `<div class="btn-row"><button class="action resolve" data-resolve="${row.id}">対応済みにする</button></div>` : ""}
+        </div>
+      `
+      )
+      .join("");
+
+    list.querySelectorAll("[data-resolve]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        await supabaseClient.from("reports").update({ status: "resolved" }).eq("id", btn.dataset.resolve);
+        loadReports();
+      });
+    });
+  }
+
+  // ---------------------------------------------------------
+  // ご意見・アイデア
+  // ---------------------------------------------------------
+
+  async function loadFeedback() {
+    const { data, error } = await supabaseClient
+      .from("feedback")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    const list = $("feedbackList");
+    if (error) {
+      list.innerHTML = `<div class="empty">読み込みに失敗しました：${escapeHtml(error.message)}</div>`;
+      return;
+    }
+    if (!data.length) {
+      list.innerHTML = `<div class="empty">ご意見はまだありません。</div>`;
+      return;
+    }
+    list.innerHTML = data
+      .map(
+        (row) => `
+        <div class="card" data-id="${row.id}">
+          <div class="card-row">
+            <p class="meta">${formatDate(row.created_at)}</p>
+            <span class="badge ${row.status === "unread" ? "badge-unread" : "badge-read"}">${row.status === "unread" ? "未読" : "既読"}</span>
+          </div>
+          <p>${escapeHtml(row.message)}</p>
+          ${row.status === "unread" ? `<div class="btn-row"><button class="action resolve" data-read="${row.id}">既読にする</button></div>` : ""}
+        </div>
+      `
+      )
+      .join("");
+
+    list.querySelectorAll("[data-read]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        await supabaseClient.from("feedback").update({ status: "read" }).eq("id", btn.dataset.read);
+        loadFeedback();
+      });
+    });
+  }
+
+  // ---------------------------------------------------------
+  // 温泉地追加・編集
+  // ---------------------------------------------------------
+
+  const AREA_PREFECTURE_ORDER = [
+    "北海道", "青森県", "岩手県", "宮城県", "秋田県", "山形県", "福島県",
+    "茨城県", "栃木県", "群馬県", "埼玉県", "千葉県", "東京都", "神奈川県",
+    "新潟県", "富山県", "石川県", "福井県", "山梨県", "長野県",
+    "岐阜県", "静岡県", "愛知県", "三重県",
+    "滋賀県", "京都府", "大阪府", "兵庫県", "奈良県", "和歌山県",
+    "鳥取県", "島根県", "岡山県", "広島県", "山口県",
+    "徳島県", "香川県", "愛媛県", "高知県",
+    "福岡県", "佐賀県", "長崎県", "熊本県", "大分県", "宮崎県", "鹿児島県", "沖縄県"
+  ];
+
+  function stripGun(name) {
+    return (name || "").replace(/^.+?郡/, "");
+  }
+
+  function getCitiesForPrefecture(pref) {
+    const raw = window.MUNICIPALITIES_BY_PREFECTURE?.[pref] || [];
+    // 郡名部分を省いた市区町村名に変換（重複は除去、順序は維持）
+    const seen = new Set();
+    const result = [];
+    raw.forEach((name) => {
+      const stripped = stripGun(name);
+      if (!seen.has(stripped)) {
+        seen.add(stripped);
+        result.push(stripped);
+      }
+    });
+    return result;
+  }
+
+  function populateAreaPrefectureSelect() {
+    const select = $("areaPrefecture");
+    const prefectures = Object.keys(window.MUNICIPALITIES_BY_PREFECTURE || {}).sort(
+      (a, b) => AREA_PREFECTURE_ORDER.indexOf(a) - AREA_PREFECTURE_ORDER.indexOf(b)
+    );
+    select.innerHTML =
+      `<option value="">選択してください</option>` +
+      prefectures.map((p) => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join("");
+  }
+
+  function populateAreaCitySelect(pref, selectedCity) {
+    const select = $("areaCity");
+    const cities = getCitiesForPrefecture(pref);
+    if (!pref || !cities.length) {
+      select.innerHTML = `<option value="">先に都道府県を選択してください</option>`;
+      return;
+    }
+    select.innerHTML =
+      `<option value="">選択してください</option>` +
+      cities.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+    if (selectedCity && cities.includes(selectedCity)) {
+      select.value = selectedCity;
+    }
+  }
+
+  populateAreaPrefectureSelect();
+
+  $("areaPrefecture").addEventListener("change", () => {
+    populateAreaCitySelect($("areaPrefecture").value, "");
+  });
+
+  let allFacilitiesForAreaSearch = [];
+  let selectedAreaFacilityIds = [];
+  let editingAreaId = null;
+
+  async function loadAllFacilitiesForAreaSearch() {
+    const { data, error } = await supabaseClient
+      .from("onsen_database")
+      .select("id, name, prefecture, area")
+      .order("name", { ascending: true });
+    if (error) {
+      console.error(error);
+      return;
+    }
+    allFacilitiesForAreaSearch = data || [];
+  }
+
+  function renderSelectedAreaFacilities() {
+    const wrap = $("areaSelectedFacilities");
+    if (!selectedAreaFacilityIds.length) {
+      wrap.innerHTML = `<p class="empty">まだ施設が選択されていません。</p>`;
+      return;
+    }
+    wrap.innerHTML = selectedAreaFacilityIds
+      .map((id) => {
+        const f = allFacilitiesForAreaSearch.find((x) => String(x.id) === String(id));
+        return `<span class="badge badge-update" style="margin:0 6px 6px 0;cursor:pointer" data-remove="${id}">${escapeHtml(f ? f.name : "（不明な施設）")} ×</span>`;
+      })
+      .join("");
+    wrap.querySelectorAll("[data-remove]").forEach((el) => {
+      el.addEventListener("click", () => {
+        selectedAreaFacilityIds = selectedAreaFacilityIds.filter((id) => String(id) !== el.dataset.remove);
+        renderSelectedAreaFacilities();
+      });
+    });
+  }
+
+  $("areaFacilitySearch").addEventListener("input", () => {
+    const q = $("areaFacilitySearch").value.trim().toLowerCase();
+    const resultsBox = $("areaFacilitySearchResults");
+    if (!q) {
+      resultsBox.innerHTML = "";
+      return;
+    }
+    const selectedPref = $("areaPrefecture").value;
+    const selectedCity = $("areaCity").value;
+    const matches = allFacilitiesForAreaSearch
+      .filter((f) => f.name && f.name.toLowerCase().includes(q))
+      .filter((f) => !selectedAreaFacilityIds.includes(String(f.id)))
+      .filter((f) => !selectedPref || f.prefecture === selectedPref)
+      .filter((f) => !selectedCity || f.area === selectedCity)
+      .slice(0, 15);
+    resultsBox.innerHTML = matches
+      .map(
+        (f) =>
+          `<div class="card" style="padding:10px 12px;margin-bottom:6px;cursor:pointer" data-add="${f.id}">${escapeHtml(f.name)}${f.prefecture ? `（${escapeHtml(f.prefecture)}${escapeHtml(f.area || "")}）` : ""}</div>`
+      )
+      .join("");
+    resultsBox.querySelectorAll("[data-add]").forEach((el) => {
+      el.addEventListener("click", () => {
+        if (!selectedAreaFacilityIds.includes(el.dataset.add)) {
+          selectedAreaFacilityIds.push(el.dataset.add);
+          renderSelectedAreaFacilities();
+        }
+        $("areaFacilitySearch").value = "";
+        resultsBox.innerHTML = "";
+      });
+    });
+  });
+
+  function resetAreaForm() {
+    editingAreaId = null;
+    selectedAreaFacilityIds = [];
+    $("areaFormTitle").textContent = "新しい温泉地を追加";
+    $("areaName").value = "";
+    $("areaPrefecture").value = "";
+    $("areaRegion").value = "";
+    $("areaRegionOrder").value = "1";
+    populateAreaCitySelect("", "");
+    $("areaCancelEditButton").style.display = "none";
+    renderSelectedAreaFacilities();
+  }
+
+  $("areaCancelEditButton").addEventListener("click", resetAreaForm);
+
+  $("areaSaveButton").addEventListener("click", async () => {
+    const name = $("areaName").value.trim();
+    if (!name) {
+      alert("温泉地名を入力してください。");
+      return;
+    }
+    const payload = {
+      name,
+      prefecture: $("areaPrefecture").value.trim() || null,
+      region: $("areaRegion").value.trim() || null,
+      region_order: Number($("areaRegionOrder").value) || 1,
+      area: $("areaCity").value.trim() || null,
+      facility_ids: selectedAreaFacilityIds
+    };
+    try {
+      if (editingAreaId) {
+        const { error } = await supabaseClient.from("onsen_areas").update(payload).eq("id", editingAreaId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabaseClient.from("onsen_areas").insert([payload]);
+        if (error) throw error;
+      }
+      resetAreaForm();
+      loadAreas();
+      alert("保存しました。");
+    } catch (error) {
+      alert("保存できませんでした：" + error.message);
+    }
+  });
+
+  async function loadAreas() {
+    const { data, error } = await supabaseClient
+      .from("onsen_areas")
+      .select("*");
+
+    const list = $("areasList");
+    if (error) {
+      list.innerHTML = `<div class="empty">読み込みに失敗しました：${escapeHtml(error.message)}</div>`;
+      return;
+    }
+    if (!data.length) {
+      list.innerHTML = `<div class="empty">まだ温泉地が登録されていません。</div>`;
+      return;
+    }
+
+    // 都道府県 → 地方区分（region_order） → 市区町村（municipalities.jsの順・郡名省略） の順に並べ替え
+    const regionOrderMap = {};
+    data.forEach((area) => {
+      const key = `${area.prefecture || ""}__${area.region || ""}`;
+      const order = Number(area.region_order) || 0;
+      if (!(key in regionOrderMap) || order < regionOrderMap[key]) {
+        regionOrderMap[key] = order;
+      }
+    });
+
+    const cityOrderCache = {};
+    function cityOrderFor(pref) {
+      if (!(pref in cityOrderCache)) {
+        cityOrderCache[pref] = getCitiesForPrefecture(pref);
+      }
+      return cityOrderCache[pref];
+    }
+
+    data.sort((a, b) => {
+      const prefDiff =
+        AREA_PREFECTURE_ORDER.indexOf(a.prefecture || "") - AREA_PREFECTURE_ORDER.indexOf(b.prefecture || "");
+      if (prefDiff !== 0) return prefDiff;
+
+      const regionDiff =
+        regionOrderMap[`${a.prefecture || ""}__${a.region || ""}`] -
+        regionOrderMap[`${b.prefecture || ""}__${b.region || ""}`];
+      if (regionDiff !== 0) return regionDiff;
+      if ((a.region || "") !== (b.region || "")) {
+        return (a.region || "").localeCompare(b.region || "", "ja");
+      }
+
+      const cityOrder = cityOrderFor(a.prefecture || "");
+      const ai = cityOrder.indexOf(a.area || "");
+      const bi = cityOrder.indexOf(b.area || "");
+      if (ai === -1 && bi === -1) return (a.area || "").localeCompare(b.area || "", "ja");
+      if (ai === -1) return 1;
+      if (bi === -1) return -1;
+      if (ai !== bi) return ai - bi;
+
+      return (a.name || "").localeCompare(b.name || "", "ja");
+    });
+
+    list.innerHTML = data
+      .map(
+        (area) => `
+        <div class="card" data-id="${area.id}">
+          <h3>${escapeHtml(area.name)}</h3>
+          <p class="meta">${escapeHtml(area.prefecture || "")}${area.region ? `　${escapeHtml(area.region)}` : ""}　${escapeHtml(area.area || "")}｜施設数：${(area.facility_ids || []).length}件</p>
+          <div class="btn-row">
+            <button class="action" data-edit="${area.id}">編集する</button>
+            <button class="action reject" data-delete="${area.id}">削除する</button>
+          </div>
+        </div>
+      `
+      )
+      .join("");
+
+    list.querySelectorAll("[data-edit]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const area = data.find((a) => String(a.id) === btn.dataset.edit);
+        if (!area) return;
+        editingAreaId = area.id;
+        selectedAreaFacilityIds = [...(area.facility_ids || [])];
+        $("areaFormTitle").textContent = "温泉地を編集";
+        $("areaName").value = area.name || "";
+        $("areaPrefecture").value = area.prefecture || "";
+        $("areaRegion").value = area.region || "";
+        $("areaRegionOrder").value = Math.min(10, Math.max(1, Number(area.region_order) || 1));
+        populateAreaCitySelect(area.prefecture || "", area.area || "");
+        $("areaCancelEditButton").style.display = "inline-block";
+        renderSelectedAreaFacilities();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+    });
+    list.querySelectorAll("[data-delete]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        if (!confirm("この温泉地を削除します。よろしいですか？")) return;
+        await supabaseClient.from("onsen_areas").delete().eq("id", btn.dataset.delete);
+        loadAreas();
+      });
+    });
+  }
+
+  renderSelectedAreaFacilities();
+
+  // ---------------------------------------------------------
+  // 施設の削除
+  // ---------------------------------------------------------
+
+  let deleteSearchTimer = null;
+  $("deleteFacilitySearch").addEventListener("input", () => {
+    clearTimeout(deleteSearchTimer);
+    const q = $("deleteFacilitySearch").value.trim();
+    const resultsBox = $("deleteFacilityResults");
+    if (!q) {
+      resultsBox.innerHTML = "";
+      return;
+    }
+    deleteSearchTimer = setTimeout(async () => {
+      const { data, error } = await supabaseClient
+        .from("onsen_database")
+        .select("id, name, prefecture, area")
+        .or(`name.ilike.%${q}%,area.ilike.%${q}%`)
+        .order("name", { ascending: true })
+        .limit(15);
+
+      if (error) {
+        resultsBox.innerHTML = `<div class="empty">検索に失敗しました：${escapeHtml(error.message)}</div>`;
+        return;
+      }
+      if (!data.length) {
+        resultsBox.innerHTML = `<div class="empty">該当する施設が見つかりません。</div>`;
+        return;
+      }
+
+      resultsBox.innerHTML = data
+        .map(
+          (f) => `
+            <div class="card" data-id="${f.id}">
+              <h3>${escapeHtml(f.name || "名称未設定")}</h3>
+              <p class="meta">${escapeHtml(f.prefecture || "")}${escapeHtml(f.area || "")}</p>
+              <div class="btn-row">
+                <button class="action reject" data-delete-facility="${f.id}" data-name="${escapeHtml(f.name || "")}">削除する</button>
+              </div>
+            </div>
+          `
+        )
+        .join("");
+
+      resultsBox.querySelectorAll("[data-delete-facility]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          if (!confirm(`「${btn.dataset.name}」を完全に削除します。この操作は取り消せません。よろしいですか？`)) return;
+          const { error: deleteError } = await supabaseClient
+            .from("onsen_database")
+            .delete()
+            .eq("id", btn.dataset.deleteFacility);
+          if (deleteError) {
+            alert("削除できませんでした：" + deleteError.message);
+            return;
+          }
+          alert("削除しました。");
+          btn.closest(".card")?.remove();
+        });
+      });
+    }, 300);
+  });
+
+  // ---------------------------------------------------------
+  // サイト公開設定
+  // ---------------------------------------------------------
+
+  let currentIsPublic = true;
+
+  async function loadSettings() {
+    const { data, error } = await supabaseClient
+      .from("site_settings")
+      .select("*")
+      .eq("id", 1)
+      .single();
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+    currentIsPublic = data.is_public !== false;
+    $("publicToggle").classList.toggle("on", currentIsPublic);
+    $("maintenanceMessage").value = data.maintenance_message || "";
+  }
+
+  $("publicToggle").addEventListener("click", () => {
+    currentIsPublic = !currentIsPublic;
+    $("publicToggle").classList.toggle("on", currentIsPublic);
+  });
+
+  $("saveSettingsButton").addEventListener("click", async () => {
+    try {
+      const { error } = await supabaseClient
+        .from("site_settings")
+        .update({
+          is_public: currentIsPublic,
+          maintenance_message: $("maintenanceMessage").value.trim() || null
+        })
+        .eq("id", 1);
+      if (error) throw error;
+      alert("設定を保存しました。");
+    } catch (error) {
+      alert("保存できませんでした：" + error.message);
+    }
+  });
+
+  if (supabaseClient) checkSession();
+})();
+</script>
+</body>
+</html>
