@@ -135,6 +135,8 @@ body.modal-open{overflow:hidden}.primary{background:#875020;color:#fff}.secondar
 .card-corner-badge-male{background:#3b6fd6}
 .card-corner-badge-female{background:#e0629c}
 .card-corner-badge-member{background:#e8c300;color:#3a2c1c}
+.card-corner-badge-temp-closed{background:#d64545}
+.card-corner-badge-closed{background:#1a1a1a}
 .review-item{border-top:1px solid #eee5df;padding:14px 0}
 .review-item:first-child{border-top:none;padding-top:0}
 .review-author{font-weight:700;margin:0 0 6px;color:#3a2c1c}

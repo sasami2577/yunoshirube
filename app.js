@@ -3688,6 +3688,15 @@
   function getUsageBadgesAndOutline(item) {
     const outlineColors = [];
     const badges = [];
+
+    if (item.is_closed) {
+      outlineColors.push("#1a1a1a");
+      badges.push({ cls: "card-corner-badge-closed", label: "🚫 閉鎖済み" });
+    } else if (item.is_temp_closed) {
+      outlineColors.push("#d64545");
+      badges.push({ cls: "card-corner-badge-temp-closed", label: "⚠️ 臨時休業中" });
+    }
+
     if (Array.isArray(item.usage)) {
       if (item.usage.includes("宿泊者のみ")) {
         outlineColors.push("#7c5cbf");
