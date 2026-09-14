@@ -3871,7 +3871,7 @@
               })()}
               ${
                 item.lat != null && item.lng != null
-                  ? `<button type="button" class="show-on-map card-action-half" data-id="${escapeHtml(item.id ?? "")}">🗺 マップで確認する</button>`
+                  ? `<button type="button" class="show-on-map card-action-half" data-id="${escapeHtml(item.id ?? "")}">🗺 地図で確認する</button>`
                   : ""
               }
             </div>
