@@ -7917,6 +7917,23 @@
     }
   }
 
+  // iOSでキーボード表示時にposition:fixedのモーダルがずれるのを防ぐため、
+  // 見えている範囲（ビジュアルビューポート）に高さ・位置を追従させる
+  function syncViewportSizeVars() {
+    const vv = window.visualViewport;
+    const height = vv ? vv.height : window.innerHeight;
+    const top = vv ? vv.offsetTop : 0;
+    document.documentElement.style.setProperty("--app-vv-height", `${height}px`);
+    document.documentElement.style.setProperty("--app-vv-top", `${top}px`);
+  }
+  syncViewportSizeVars();
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", syncViewportSizeVars);
+    window.visualViewport.addEventListener("scroll", syncViewportSizeVars);
+  } else {
+    window.addEventListener("resize", syncViewportSizeVars);
+  }
+
   async function start() {
     setupEvents();
     restoreAppState();
