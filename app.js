@@ -799,7 +799,14 @@
     return html;
   }
 
-  function addHoursRangeRow(containerId, open = "", close = "", { focus = true, lastEntry = null, withLastEntry = false } = {}) {
+  const HOURS_ROW_DAY_OPTIONS = ["日", "月", "火", "水", "木", "金", "土", "祝"];
+
+  function addHoursRangeRow(
+    containerId,
+    open = "",
+    close = "",
+    { focus = true, lastEntry = null, withLastEntry = false, withDays = false, days = [] } = {}
+  ) {
     const rows = $(containerId);
     if (!rows) return;
 
@@ -812,17 +819,30 @@
 
     const row = document.createElement("div");
     row.className = withLastEntry ? "rental-row hours-range-row with-last-entry" : "rental-row hours-range-row";
+    if (withDays) row.classList.add("with-days");
     row.dataset.rowId = rowId;
     row.innerHTML = `
-      <div class="time-select"><select class="hours-open-hour">${hourOptions}</select><span>:</span><select class="hours-open-minute">${minuteOptions}</select></div>
-      <span>〜</span>
-      <div class="time-select"><select class="hours-close-hour">${hourOptions}</select><span>:</span><select class="hours-close-minute">${minuteOptions}</select></div>
       ${
-        withLastEntry
-          ? `<span class="hours-last-entry-label">最終受付</span><div class="time-select"><select class="hours-last-entry-hour">${hourOptions}</select><span>:</span><select class="hours-last-entry-minute">${minuteOptions}</select></div>`
+        withDays
+          ? `<div class="hours-row-days checks">${HOURS_ROW_DAY_OPTIONS.map(
+              (d) =>
+                `<label><input type="checkbox" class="hours-row-day" value="${d}" ${
+                  Array.isArray(days) && days.includes(d) ? "checked" : ""
+                }>${d}${d === "祝" ? "" : "曜"}</label>`
+            ).join("")}</div>`
           : ""
       }
-      <button type="button" class="remove-rental" aria-label="この時間帯を削除">×</button>
+      <div class="hours-time-line">
+        <div class="time-select"><select class="hours-open-hour">${hourOptions}</select><span>:</span><select class="hours-open-minute">${minuteOptions}</select></div>
+        <span>〜</span>
+        <div class="time-select"><select class="hours-close-hour">${hourOptions}</select><span>:</span><select class="hours-close-minute">${minuteOptions}</select></div>
+        ${
+          withLastEntry
+            ? `<span class="hours-last-entry-label">最終受付</span><div class="time-select"><select class="hours-last-entry-hour">${hourOptions}</select><span>:</span><select class="hours-last-entry-minute">${minuteOptions}</select></div>`
+            : ""
+        }
+        <button type="button" class="remove-rental" aria-label="この時間帯を削除">×</button>
+      </div>
     `;
     rows.appendChild(row);
 
@@ -838,7 +858,7 @@
     if (focus) row.querySelector(".hours-open-hour")?.focus();
   }
 
-  function collectHoursRangeRows(containerId, { withLastEntry = false } = {}) {
+  function collectHoursRangeRows(containerId, { withLastEntry = false, withDays = false } = {}) {
     const rows = $(containerId);
     if (!rows) return [];
 
@@ -856,14 +876,21 @@
         const lm = row.querySelector(".hours-last-entry-minute")?.value || "";
         lastEntry = lh && lm ? `${lh}:${lm}` : "";
       }
+      let rowDays = [];
+      if (withDays) {
+        rowDays = Array.from(row.querySelectorAll(".hours-row-day:checked")).map((el) => el.value);
+      }
       if (!open && !close && !lastEntry) return;
-      result.push(withLastEntry ? { open, close, lastEntry } : { open, close });
+      const entry = { open, close };
+      if (withLastEntry) entry.lastEntry = lastEntry;
+      if (withDays) entry.days = rowDays;
+      result.push(entry);
     });
 
     return result;
   }
 
-  function populateHoursRangeRows(containerId, items, { withLastEntry = false } = {}) {
+  function populateHoursRangeRows(containerId, items, { withLastEntry = false, withDays = false } = {}) {
     const rows = $(containerId);
     if (!rows) return;
     rows.innerHTML = "";
@@ -872,7 +899,9 @@
       addHoursRangeRow(containerId, it.open || "", it.close || "", {
         focus: false,
         lastEntry: it.lastEntry || "",
-        withLastEntry
+        withLastEntry,
+        withDays,
+        days: it.days || []
       })
     );
   }
@@ -978,18 +1007,18 @@
       overnight_close_time: timeValue("overnightClose"),
       overnight_last_entry: timeValue("overnightLastEntry"),
       overnight_days: checkedValues("overnightDays"),
-      overnight_additional_hours: collectHoursRangeRows("overnightAdditionalHoursRows", { withLastEntry: true }),
+      overnight_additional_hours: collectHoursRangeRows("overnightAdditionalHoursRows", { withLastEntry: true, withDays: true }),
       morning_bath_open_time: timeValue("morningBathOpen"),
       morning_bath_close_time: timeValue("morningBathClose"),
       morning_bath_last_entry: timeValue("morningBathLastEntry"),
       morning_bath_days: checkedValues("morningBathDays"),
-      morning_bath_additional_hours: collectHoursRangeRows("morningBathAdditionalHoursRows", { withLastEntry: true }),
+      morning_bath_additional_hours: collectHoursRangeRows("morningBathAdditionalHoursRows", { withLastEntry: true, withDays: true }),
       other_hours_label: value("otherHoursLabel"),
       other_hours_open_time: timeValue("otherHoursOpen"),
       other_hours_close_time: timeValue("otherHoursClose"),
       other_hours_last_entry: timeValue("otherHoursLastEntry"),
       other_hours_days: checkedValues("otherHoursDays"),
-      other_hours_additional_hours: collectHoursRangeRows("otherHoursAdditionalHoursRows", { withLastEntry: true }),
+      other_hours_additional_hours: collectHoursRangeRows("otherHoursAdditionalHoursRows", { withLastEntry: true, withDays: true }),
       closed_nth_weeks: checkedBool("closedNthWeekdayEnabled")
         ? checkedValues("closedNthWeek")
         : null,
@@ -2045,19 +2074,19 @@
     setTimeValue("overnightOpen", item.overnight_open_time);
     setTimeValue("overnightClose", item.overnight_close_time);
     setTimeValue("overnightLastEntry", item.overnight_last_entry);
-    setCheckboxGroup("overnightDays", ["日", "月", "火", "水", "木", "金", "土"], item.overnight_days);
-    populateHoursRangeRows("overnightAdditionalHoursRows", item.overnight_additional_hours, { withLastEntry: true });
+    setCheckboxGroup("overnightDays", ["日", "月", "火", "水", "木", "金", "土", "祝"], item.overnight_days);
+    populateHoursRangeRows("overnightAdditionalHoursRows", item.overnight_additional_hours, { withLastEntry: true, withDays: true });
     setTimeValue("morningBathOpen", item.morning_bath_open_time);
     setTimeValue("morningBathClose", item.morning_bath_close_time);
     setTimeValue("morningBathLastEntry", item.morning_bath_last_entry);
-    setCheckboxGroup("morningBathDays", ["日", "月", "火", "水", "木", "金", "土"], item.morning_bath_days);
-    populateHoursRangeRows("morningBathAdditionalHoursRows", item.morning_bath_additional_hours, { withLastEntry: true });
+    setCheckboxGroup("morningBathDays", ["日", "月", "火", "水", "木", "金", "土", "祝"], item.morning_bath_days);
+    populateHoursRangeRows("morningBathAdditionalHoursRows", item.morning_bath_additional_hours, { withLastEntry: true, withDays: true });
     setValue("otherHoursLabel", item.other_hours_label);
     setTimeValue("otherHoursOpen", item.other_hours_open_time);
     setTimeValue("otherHoursClose", item.other_hours_close_time);
     setTimeValue("otherHoursLastEntry", item.other_hours_last_entry);
-    setCheckboxGroup("otherHoursDays", ["日", "月", "火", "水", "木", "金", "土"], item.other_hours_days);
-    populateHoursRangeRows("otherHoursAdditionalHoursRows", item.other_hours_additional_hours, { withLastEntry: true });
+    setCheckboxGroup("otherHoursDays", ["日", "月", "火", "水", "木", "金", "土", "祝"], item.other_hours_days);
+    populateHoursRangeRows("otherHoursAdditionalHoursRows", item.other_hours_additional_hours, { withLastEntry: true, withDays: true });
     if (Array.isArray(item.closed_nth_weeks) && item.closed_nth_weeks.length) {
       $("closedNthWeekdayEnabled").checked = true;
       $("closedNthWeekdayWrap")?.classList.remove("hidden");
@@ -4240,15 +4269,20 @@
 
     const nowMinutes = now.getHours() * 60 + now.getMinutes();
 
-    // 対象曜日（未選択なら毎日）に今日が含まれているか判定
+    // 対象曜日（未選択なら毎日）に今日が含まれているか判定（祝日指定にも対応）
     const daysMatchToday = (days) =>
-      !Array.isArray(days) || !days.length || days.includes(todayChar);
+      !Array.isArray(days) ||
+      !days.length ||
+      days.includes(todayChar) ||
+      (todayIsHoliday && days.includes("祝"));
 
     // 通常営業時間・曜日別営業時間・宿泊者限定・朝風呂・その他の営業時間、
     // すべての時間帯を候補として、現在時刻がどこに当てはまるか調べる
-    const additionalWindows = (days, list) =>
-      daysMatchToday(days) && Array.isArray(list)
-        ? list.map((w) => ({ open: w.open, close: w.close, lastEntry: w.lastEntry }))
+    const additionalWindows = (parentDays, list) =>
+      Array.isArray(list)
+        ? list
+            .filter((w) => daysMatchToday(Array.isArray(w.days) && w.days.length ? w.days : parentDays))
+            .map((w) => ({ open: w.open, close: w.close, lastEntry: w.lastEntry }))
         : [];
 
     const candidateWindows = [
@@ -4437,17 +4471,19 @@
           ${item.hours_note ? `<p class="detail-note">${escapeHtml(item.hours_note)}</p>` : ""}
           ${(() => {
             const daysSuffix = (days) =>
-              Array.isArray(days) && days.length ? `（${days.map((d) => `${d}曜`).join("・")}）` : "";
+              Array.isArray(days) && days.length
+                ? `（${days.map((d) => (d === "祝" ? "祝日" : `${d}曜`)).join("・")}）`
+                : "";
             const lastEntrySuffix = (t) => (t ? `（最終受付${escapeHtml(t)}）` : "");
 
-            const additionalRows = (icon, label, days, list) =>
+            const additionalRows = (icon, label, parentDays, list) =>
               Array.isArray(list)
                 ? list
                     .filter((w) => w.open || w.close)
-                    .map(
-                      (w) =>
-                        `${icon} ${label}：${escapeHtml(w.open || "?")}〜${escapeHtml(w.close || "?")}${lastEntrySuffix(w.lastEntry)}${escapeHtml(daysSuffix(days))}`
-                    )
+                    .map((w) => {
+                      const rowDays = Array.isArray(w.days) && w.days.length ? w.days : parentDays;
+                      return `${icon} ${label}：${escapeHtml(w.open || "?")}〜${escapeHtml(w.close || "?")}${lastEntrySuffix(w.lastEntry)}${escapeHtml(daysSuffix(rowDays))}`;
+                    })
                 : [];
 
             const rows = [
@@ -6855,7 +6891,7 @@
       button.closest(".hours-range-row")?.remove();
     });
     $("addOvernightAdditionalHours")?.addEventListener("click", () =>
-      addHoursRangeRow("overnightAdditionalHoursRows", "", "", { withLastEntry: true })
+      addHoursRangeRow("overnightAdditionalHoursRows", "", "", { withLastEntry: true, withDays: true })
     );
     $("overnightAdditionalHoursRows")?.addEventListener("click", (event) => {
       const button = event.target.closest(".remove-rental");
@@ -6863,7 +6899,7 @@
       button.closest(".hours-range-row")?.remove();
     });
     $("addMorningBathAdditionalHours")?.addEventListener("click", () =>
-      addHoursRangeRow("morningBathAdditionalHoursRows", "", "", { withLastEntry: true })
+      addHoursRangeRow("morningBathAdditionalHoursRows", "", "", { withLastEntry: true, withDays: true })
     );
     $("morningBathAdditionalHoursRows")?.addEventListener("click", (event) => {
       const button = event.target.closest(".remove-rental");
@@ -6871,7 +6907,7 @@
       button.closest(".hours-range-row")?.remove();
     });
     $("addOtherHoursAdditionalHours")?.addEventListener("click", () =>
-      addHoursRangeRow("otherHoursAdditionalHoursRows", "", "", { withLastEntry: true })
+      addHoursRangeRow("otherHoursAdditionalHoursRows", "", "", { withLastEntry: true, withDays: true })
     );
     $("otherHoursAdditionalHoursRows")?.addEventListener("click", (event) => {
       const button = event.target.closest(".remove-rental");
