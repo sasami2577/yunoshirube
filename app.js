@@ -6451,8 +6451,8 @@
         resetForm();
         closeModal();
 
-        if (isEditing) {
-          location.hash = "";
+        if (isEditing && location.hash !== `#detail-${targetId}`) {
+          location.hash = `#detail-${targetId}`;
         }
 
         alert(
