@@ -303,14 +303,14 @@
 <button type="button" class="tab-btn" data-tab-target="basic">基本情報</button>
 <button type="button" class="tab-btn" data-tab-target="price">料金・決済方法</button>
 <button type="button" class="tab-btn" data-tab-target="onsen">温泉情報</button>
-<button type="button" class="tab-btn" data-tab-target="facility-male">🚹 男性 浴場情報</button>
-<button type="button" class="tab-btn" data-tab-target="facility-female">🚺 女性 浴場情報</button>
-<button type="button" class="tab-btn" data-tab-target="sauna-male">🚹 男性 サウナ関連</button>
-<button type="button" class="tab-btn" data-tab-target="sauna-female">🚺 女性 サウナ関連</button>
-<button type="button" class="tab-btn" data-tab-target="amenity-male">🚹 男性 シャワー・アメニティ</button>
-<button type="button" class="tab-btn" data-tab-target="amenity-female">🚺 女性 シャワー・アメニティ</button>
-<button type="button" class="tab-btn" data-tab-target="locker-male">🚹 男性 ロッカー・靴箱</button>
-<button type="button" class="tab-btn" data-tab-target="locker-female">🚺 女性 ロッカー・靴箱</button>
+<button type="button" class="tab-btn" data-tab-target="facility-male" data-gender-common-label="🛀 浴場情報" data-gender-common-pair="facility">🚹 男性 浴場情報</button>
+<button type="button" class="tab-btn" data-tab-target="facility-female" data-gender-common-hide="facility">🚺 女性 浴場情報</button>
+<button type="button" class="tab-btn" data-tab-target="sauna-male" data-gender-common-label="🧖 サウナ関連" data-gender-common-pair="sauna">🚹 男性 サウナ関連</button>
+<button type="button" class="tab-btn" data-tab-target="sauna-female" data-gender-common-hide="sauna">🚺 女性 サウナ関連</button>
+<button type="button" class="tab-btn" data-tab-target="amenity-male" data-gender-common-label="🚿 シャワー・アメニティ" data-gender-common-pair="amenity">🚹 男性 シャワー・アメニティ</button>
+<button type="button" class="tab-btn" data-tab-target="amenity-female" data-gender-common-hide="amenity">🚺 女性 シャワー・アメニティ</button>
+<button type="button" class="tab-btn" data-tab-target="locker-male" data-gender-common-label="🧺 ロッカー・靴箱" data-gender-common-pair="locker">🚹 男性 ロッカー・靴箱</button>
+<button type="button" class="tab-btn" data-tab-target="locker-female" data-gender-common-hide="locker">🚺 女性 ロッカー・靴箱</button>
 <button type="button" class="tab-btn" data-tab-target="toilet">トイレ・バリアフリー</button>
 <button type="button" class="tab-btn" data-tab-target="dining">お食事処・売店・自動販売機</button>
 <button type="button" class="tab-btn" data-tab-target="rest-massage">休憩スペース・マッサージ</button>
@@ -318,6 +318,10 @@
 <button type="button" class="tab-btn" data-tab-target="parking">駐車場</button>
 <button type="button" class="tab-btn" data-tab-target="user">ユーザー情報・地図情報</button>
 </div>
+<label class="full compact-top gender-common-toggle-row">
+<input type="checkbox" id="genderCommonModeToggle" checked>
+🔗 浴場情報・サウナ関連・シャワー/アメニティ・ロッカー/靴箱を男女共通で入力する（チェックを外すと男女別々に入力できます）
+</label>
 <form id="form">
 <section class="form-section" data-tab="basic"><h3>基本情報</h3><div class="grid two">
 <label class="full">温泉・施設名 <em>必須</em><input id="name" required maxlength="100" placeholder="例：○○温泉"></label>

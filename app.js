@@ -2997,6 +2997,12 @@
     setValue("lng", item.lng);
     setValue("googleMapsUrl", item.google_maps_url);
     setValue("note", item.note);
+
+    // 男女の浴場情報等が完全に一致していれば共通モード、異なっていれば男女別モードにする
+    if ($("genderCommonModeToggle")) {
+      $("genderCommonModeToggle").checked = detectGenderCommonModeFromData();
+    }
+    applyGenderCommonModeUI();
   }
 
   // ---------------------------------------------------------
@@ -6377,6 +6383,8 @@
   async function saveOnsen(event) {
     event.preventDefault();
 
+    if ($("genderCommonModeToggle")?.checked) mirrorAllGenderSections();
+
     let item;
     try {
       item = collectFormData();
@@ -6514,6 +6522,9 @@
     if (!form) return;
 
     form.reset();
+
+    if ($("genderCommonModeToggle")) $("genderCommonModeToggle").checked = true;
+    applyGenderCommonModeUI();
 
     $("duplicateNameSuggestions")?.classList.add("hidden");
     renderMyRatingStars(0);
@@ -7504,6 +7515,106 @@
     const dialog = document.querySelector(".dialog");
     if (dialog) dialog.scrollTop = 0;
   }
+
+  // ---------------------------------------------------------
+  // 浴場情報・サウナ関連・シャワー/アメニティ・ロッカー/靴箱の
+  // 男女共通入力モード（男性側の入力内容を女性側にも自動反映する）
+  // ---------------------------------------------------------
+
+  const GENDER_COMMON_PAIRS = [
+    { pair: "facility", maleTab: "facility-male", femaleTab: "facility-female" },
+    { pair: "sauna", maleTab: "sauna-male", femaleTab: "sauna-female" },
+    { pair: "amenity", maleTab: "amenity-male", femaleTab: "amenity-female" },
+    { pair: "locker", maleTab: "locker-male", femaleTab: "locker-female" }
+  ];
+
+  function getGenderSectionFields(tabKey) {
+    const section = document.querySelector(`.form-section[data-tab="${tabKey}"]`);
+    if (!section) return [];
+    return Array.from(section.querySelectorAll("input, textarea, select"));
+  }
+
+  // 男性側の入力内容を、同じ並び順の女性側フィールドにそのままコピーする
+  function mirrorGenderSection(maleTab, femaleTab) {
+    const maleFields = getGenderSectionFields(maleTab);
+    const femaleFields = getGenderSectionFields(femaleTab);
+    maleFields.forEach((mEl, i) => {
+      const fEl = femaleFields[i];
+      if (!fEl) return;
+      if (mEl.type === "checkbox" || mEl.type === "radio") {
+        if (fEl.checked !== mEl.checked) {
+          fEl.checked = mEl.checked;
+        }
+      } else if (fEl.value !== mEl.value) {
+        fEl.value = mEl.value;
+      }
+    });
+  }
+
+  function mirrorAllGenderSections() {
+    GENDER_COMMON_PAIRS.forEach(({ maleTab, femaleTab }) => mirrorGenderSection(maleTab, femaleTab));
+  }
+
+  // 編集時：男女の入力内容がすべて一致していれば共通モード、
+  // 1つでも異なっていれば既存データを壊さないよう男女別モードにする
+  function sectionsAreEqual(maleTab, femaleTab) {
+    const maleFields = getGenderSectionFields(maleTab);
+    const femaleFields = getGenderSectionFields(femaleTab);
+    if (maleFields.length !== femaleFields.length) return false;
+    return maleFields.every((mEl, i) => {
+      const fEl = femaleFields[i];
+      if (!fEl) return false;
+      if (mEl.type === "checkbox" || mEl.type === "radio") return mEl.checked === fEl.checked;
+      return mEl.value === fEl.value;
+    });
+  }
+
+  function detectGenderCommonModeFromData() {
+    return GENDER_COMMON_PAIRS.every(({ maleTab, femaleTab }) => sectionsAreEqual(maleTab, femaleTab));
+  }
+
+  function applyGenderCommonModeUI() {
+    const isCommon = !!$("genderCommonModeToggle")?.checked;
+    let needTabSwitch = false;
+
+    document.querySelectorAll("#formTabBar .tab-btn[data-gender-common-pair]").forEach((btn) => {
+      const commonLabel = btn.dataset.genderCommonLabel;
+      if (commonLabel) btn.textContent = isCommon ? commonLabel : btn.dataset.originalLabel || btn.textContent;
+    });
+
+    document.querySelectorAll("#formTabBar .tab-btn[data-gender-common-hide]").forEach((btn) => {
+      btn.classList.toggle("hidden", isCommon);
+      if (isCommon && btn.classList.contains("active")) needTabSwitch = true;
+    });
+
+    if (isCommon) mirrorAllGenderSections();
+
+    if (needTabSwitch) {
+      const hiddenTarget = document.querySelector("#formTabBar .tab-btn.active[data-gender-common-hide]");
+      const pairKey = hiddenTarget?.dataset.genderCommonHide;
+      const maleBtn = pairKey
+        ? document.querySelector(`#formTabBar .tab-btn[data-gender-common-pair="${pairKey}"]`)
+        : null;
+      switchFormTab(maleBtn?.dataset.tabTarget || "basic");
+    }
+  }
+
+  // 元のラベル（🚹 男性 ○○）を保持しておき、共通モードOFFで戻せるようにする
+  document.querySelectorAll("#formTabBar .tab-btn[data-gender-common-pair]").forEach((btn) => {
+    btn.dataset.originalLabel = btn.textContent;
+  });
+
+  $("genderCommonModeToggle")?.addEventListener("change", applyGenderCommonModeUI);
+
+  GENDER_COMMON_PAIRS.forEach(({ maleTab, femaleTab }) => {
+    const section = document.querySelector(`.form-section[data-tab="${maleTab}"]`);
+    section?.addEventListener("input", () => {
+      if ($("genderCommonModeToggle")?.checked) mirrorGenderSection(maleTab, femaleTab);
+    });
+    section?.addEventListener("change", () => {
+      if ($("genderCommonModeToggle")?.checked) mirrorGenderSection(maleTab, femaleTab);
+    });
+  });
 
   function closeModal() {
     const modal = $("modal");
