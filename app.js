@@ -954,13 +954,16 @@
       closed_days: checkedValues("closedDay"),
       overnight_open_time: timeValue("overnightOpen"),
       overnight_close_time: timeValue("overnightClose"),
+      overnight_last_entry: timeValue("overnightLastEntry"),
       overnight_days: checkedValues("overnightDays"),
       morning_bath_open_time: timeValue("morningBathOpen"),
       morning_bath_close_time: timeValue("morningBathClose"),
+      morning_bath_last_entry: timeValue("morningBathLastEntry"),
       morning_bath_days: checkedValues("morningBathDays"),
       other_hours_label: value("otherHoursLabel"),
       other_hours_open_time: timeValue("otherHoursOpen"),
       other_hours_close_time: timeValue("otherHoursClose"),
+      other_hours_last_entry: timeValue("otherHoursLastEntry"),
       other_hours_days: checkedValues("otherHoursDays"),
       closed_nth_weeks: checkedBool("closedNthWeekdayEnabled")
         ? checkedValues("closedNthWeek")
@@ -983,8 +986,9 @@
           if (!checkedBool(`weekdayHoursEnabled_${code}`)) return;
           const open = timeValue(`weekdayHoursOpen_${code}`);
           const close = timeValue(`weekdayHoursClose_${code}`);
-          if (open || close) {
-            result[dayChars[code]] = { open: open || null, close: close || null };
+          const lastEntry = timeValue(`weekdayHoursLastEntry_${code}`);
+          if (open || close || lastEntry) {
+            result[dayChars[code]] = { open: open || null, close: close || null, lastEntry: lastEntry || null };
           }
         });
         return Object.keys(result).length ? result : null;
@@ -2015,13 +2019,16 @@
     if (item.is_closed) $("closedPermanently").checked = true;
     setTimeValue("overnightOpen", item.overnight_open_time);
     setTimeValue("overnightClose", item.overnight_close_time);
+    setTimeValue("overnightLastEntry", item.overnight_last_entry);
     setCheckboxGroup("overnightDays", ["日", "月", "火", "水", "木", "金", "土"], item.overnight_days);
     setTimeValue("morningBathOpen", item.morning_bath_open_time);
     setTimeValue("morningBathClose", item.morning_bath_close_time);
+    setTimeValue("morningBathLastEntry", item.morning_bath_last_entry);
     setCheckboxGroup("morningBathDays", ["日", "月", "火", "水", "木", "金", "土"], item.morning_bath_days);
     setValue("otherHoursLabel", item.other_hours_label);
     setTimeValue("otherHoursOpen", item.other_hours_open_time);
     setTimeValue("otherHoursClose", item.other_hours_close_time);
+    setTimeValue("otherHoursLastEntry", item.other_hours_last_entry);
     setCheckboxGroup("otherHoursDays", ["日", "月", "火", "水", "木", "金", "土"], item.other_hours_days);
     if (Array.isArray(item.closed_nth_weeks) && item.closed_nth_weeks.length) {
       $("closedNthWeekdayEnabled").checked = true;
@@ -2049,6 +2056,7 @@
           $(`weekdayHoursWrap_${code}`)?.classList.remove("hidden");
           setTimeValue(`weekdayHoursOpen_${code}`, entry.open);
           setTimeValue(`weekdayHoursClose_${code}`, entry.close);
+          setTimeValue(`weekdayHoursLastEntry_${code}`, entry.lastEntry);
         }
       });
     })();
@@ -3052,9 +3060,9 @@
     "is_24_hours",
     "temp_closed_detail",
     "weekday_hours_overrides",
-    "overnight_open_time", "overnight_close_time", "overnight_days",
-    "morning_bath_open_time", "morning_bath_close_time", "morning_bath_days",
-    "other_hours_label", "other_hours_open_time", "other_hours_close_time", "other_hours_days",
+    "overnight_open_time", "overnight_close_time", "overnight_last_entry", "overnight_days",
+    "morning_bath_open_time", "morning_bath_close_time", "morning_bath_last_entry", "morning_bath_days",
+    "other_hours_label", "other_hours_open_time", "other_hours_close_time", "other_hours_last_entry", "other_hours_days",
     "closed_nth_weeks", "closed_nth_weekday", "closed_monthly_dates",
     "closed_irregular", "closed_calendar_based", "closed_holiday_rule", "closed_day_pattern_note",
     "access_method", "accommodation_status", "address", "aed_facility_status", 
@@ -4179,31 +4187,82 @@
     const todayOverride = (todayIsHoliday && overrides["祝"]) || overrides[todayChar];
     const effectiveOpenTime = todayOverride?.open || item.open_time;
     const effectiveCloseTime = todayOverride?.close || item.close_time;
-
-    if (!effectiveOpenTime || !effectiveCloseTime) return null;
+    const effectiveLastEntry = todayOverride?.lastEntry || item.last_entry;
 
     const toMinutes = (t) => {
+      if (!t) return null;
       const [h, m] = t.split(":").map(Number);
       if (Number.isNaN(h) || Number.isNaN(m)) return null;
       return h * 60 + m;
     };
 
     const nowMinutes = now.getHours() * 60 + now.getMinutes();
-    const openMinutes = toMinutes(effectiveOpenTime);
-    const closeMinutes = toMinutes(effectiveCloseTime);
-    if (openMinutes == null || closeMinutes == null) return null;
 
-    let isOpen;
-    if (closeMinutes > openMinutes) {
-      isOpen = nowMinutes >= openMinutes && nowMinutes < closeMinutes;
-    } else {
-      // 閉店時刻が開店時刻より前＝日をまたぐ営業
-      isOpen = nowMinutes >= openMinutes || nowMinutes < closeMinutes;
+    // 対象曜日（未選択なら毎日）に今日が含まれているか判定
+    const daysMatchToday = (days) =>
+      !Array.isArray(days) || !days.length || days.includes(todayChar);
+
+    // 通常営業時間・曜日別営業時間・宿泊者限定・朝風呂・その他の営業時間、
+    // すべての時間帯を候補として、現在時刻がどこに当てはまるか調べる
+    const candidateWindows = [
+      { open: effectiveOpenTime, close: effectiveCloseTime, lastEntry: effectiveLastEntry },
+      daysMatchToday(item.overnight_days)
+        ? { open: item.overnight_open_time, close: item.overnight_close_time, lastEntry: item.overnight_last_entry }
+        : null,
+      daysMatchToday(item.morning_bath_days)
+        ? { open: item.morning_bath_open_time, close: item.morning_bath_close_time, lastEntry: item.morning_bath_last_entry }
+        : null,
+      daysMatchToday(item.other_hours_days)
+        ? { open: item.other_hours_open_time, close: item.other_hours_close_time, lastEntry: item.other_hours_last_entry }
+        : null
+    ].filter((w) => w && w.open && w.close);
+
+    if (!candidateWindows.length) return null;
+
+    // 1つの時間帯について「営業中か」「最終受付を過ぎているか」を判定
+    function evaluateWindow(w) {
+      const openMinutes = toMinutes(w.open);
+      const closeMinutes = toMinutes(w.close);
+      if (openMinutes == null || closeMinutes == null) return { isOpen: false, pastLastEntry: false };
+
+      const crossesMidnight = closeMinutes <= openMinutes;
+      const isOpen = crossesMidnight
+        ? nowMinutes >= openMinutes || nowMinutes < closeMinutes
+        : nowMinutes >= openMinutes && nowMinutes < closeMinutes;
+
+      if (!isOpen) return { isOpen: false, pastLastEntry: false };
+
+      const lastEntryMinutes = toMinutes(w.lastEntry);
+      if (lastEntryMinutes == null) return { isOpen: true, pastLastEntry: false };
+
+      let pastLastEntry;
+      if (!crossesMidnight) {
+        pastLastEntry = nowMinutes >= lastEntryMinutes;
+      } else if (lastEntryMinutes >= openMinutes) {
+        // 最終受付も日をまたぐ営業時間の「前半」側にある場合
+        pastLastEntry = nowMinutes >= lastEntryMinutes || nowMinutes < closeMinutes && nowMinutes < openMinutes;
+      } else {
+        // 最終受付が日をまたいだ後（当日側）にある場合
+        pastLastEntry = nowMinutes >= lastEntryMinutes && nowMinutes < closeMinutes;
+      }
+      return { isOpen: true, pastLastEntry };
     }
 
-    return isOpen
-      ? { label: "現在 営業中", className: "status-open" }
-      : { label: "営業時間外", className: "status-closed-hours" };
+    const evaluated = candidateWindows.map(evaluateWindow);
+    const anyOpen = evaluated.some((r) => r.isOpen);
+
+    if (!anyOpen) {
+      return { label: "営業時間外", className: "status-closed-hours" };
+    }
+
+    // 現在営業中の時間帯が1つでも「まだ最終受付前」なら通常の営業中表示にする
+    const anyOpenBeforeLastEntry = evaluated.some((r) => r.isOpen && !r.pastLastEntry);
+
+    if (!anyOpenBeforeLastEntry) {
+      return { label: "最終受付終了", className: "status-last-entry-over" };
+    }
+
+    return { label: "現在 営業中", className: "status-open" };
   }
 
   function renderDetailHTML(item) {
@@ -4321,7 +4380,7 @@
           ${
             item.weekday_hours_overrides && Object.keys(item.weekday_hours_overrides).length
               ? `<p class="detail-note">🗓 ${Object.entries(item.weekday_hours_overrides)
-                  .map(([day, t]) => `${escapeHtml(day === "祝" ? "祝日" : `${day}曜`)}：${escapeHtml(t.open || "?")}〜${escapeHtml(t.close || "?")}`)
+                  .map(([day, t]) => `${escapeHtml(day === "祝" ? "祝日" : `${day}曜`)}：${escapeHtml(t.open || "?")}〜${escapeHtml(t.close || "?")}${t.lastEntry ? `（最終受付${escapeHtml(t.lastEntry)}）` : ""}`)
                   .join("　")}</p>`
               : ""
           }
@@ -4329,16 +4388,17 @@
           ${(() => {
             const daysSuffix = (days) =>
               Array.isArray(days) && days.length ? `（${days.map((d) => `${d}曜`).join("・")}）` : "";
+            const lastEntrySuffix = (t) => (t ? `（最終受付${escapeHtml(t)}）` : "");
 
             const rows = [
               item.overnight_open_time || item.overnight_close_time
-                ? `🛌 宿泊者限定：${escapeHtml(item.overnight_open_time || "?")}〜${escapeHtml(item.overnight_close_time || "?")}${escapeHtml(daysSuffix(item.overnight_days))}`
+                ? `🛌 宿泊者限定：${escapeHtml(item.overnight_open_time || "?")}〜${escapeHtml(item.overnight_close_time || "?")}${lastEntrySuffix(item.overnight_last_entry)}${escapeHtml(daysSuffix(item.overnight_days))}`
                 : null,
               item.morning_bath_open_time || item.morning_bath_close_time
-                ? `🌅 朝風呂：${escapeHtml(item.morning_bath_open_time || "?")}〜${escapeHtml(item.morning_bath_close_time || "?")}${escapeHtml(daysSuffix(item.morning_bath_days))}`
+                ? `🌅 朝風呂：${escapeHtml(item.morning_bath_open_time || "?")}〜${escapeHtml(item.morning_bath_close_time || "?")}${lastEntrySuffix(item.morning_bath_last_entry)}${escapeHtml(daysSuffix(item.morning_bath_days))}`
                 : null,
               item.other_hours_open_time || item.other_hours_close_time
-                ? `🕒 ${escapeHtml(item.other_hours_label || "その他の営業時間")}：${escapeHtml(item.other_hours_open_time || "?")}〜${escapeHtml(item.other_hours_close_time || "?")}${escapeHtml(daysSuffix(item.other_hours_days))}`
+                ? `🕒 ${escapeHtml(item.other_hours_label || "その他の営業時間")}：${escapeHtml(item.other_hours_open_time || "?")}〜${escapeHtml(item.other_hours_close_time || "?")}${lastEntrySuffix(item.other_hours_last_entry)}${escapeHtml(daysSuffix(item.other_hours_days))}`
                 : null
             ].filter(Boolean);
 

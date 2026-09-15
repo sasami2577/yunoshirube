@@ -190,6 +190,7 @@ body.ad-banner-visible .scroll-to-top{bottom:90px}
 .status-holiday{background:#fdecea;color:#b5473c;border-color:#f0c9c5}
 .status-temp-closed{background:#fdecea;color:#b5473c;border-color:#f0c9c5}
 .status-closed-permanently{background:#2f2c2a;color:#fff;border-color:#2f2c2a}
+.status-last-entry-over{background:#e6f0fb;color:#2159a8;border-color:#bcd6f0}
 .detail-body{padding:22px}
 .detail-section{border-top:1px solid #f2f0ee;padding:18px 0}
 .detail-section:first-child{border-top:0;padding-top:0}
