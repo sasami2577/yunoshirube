@@ -213,20 +213,22 @@
 
     const current = myFacilityStatusMap[onsenId] || { interested: false, visited: false };
     const nextValue = !current[flagName];
+    const nextStatus = { ...current, [flagName]: nextValue };
 
     try {
       const { error } = await supabaseClient.from("user_facility_status").upsert(
         {
           user_id: currentUser.id,
           onsen_id: onsenId,
-          [flagName]: nextValue,
+          interested: !!nextStatus.interested,
+          visited: !!nextStatus.visited,
           updated_at: new Date().toISOString()
         },
         { onConflict: "user_id,onsen_id" }
       );
       if (error) throw error;
 
-      myFacilityStatusMap[onsenId] = { ...current, [flagName]: nextValue };
+      myFacilityStatusMap[onsenId] = nextStatus;
       if (window.__onsenData) renderCardsWithData(window.__onsenData);
       renderMyPageIfActive();
     } catch (error) {
@@ -5705,7 +5707,7 @@
     });
   }
 
-  function renderAreaFacilityCard(item) {
+  function renderAreaFacilityCard(item, extraButtonHtml = "") {
     const { outlineStyle, badgesHtml } = getUsageBadgesAndOutline(item);
     const status = getOpenStatus(item);
     const hoursText = item.is_24_hours
@@ -5734,6 +5736,7 @@
           ${priceParts.length ? `<p class="card-price">💰 料金：${escapeHtml(priceParts.join("　"))}</p>` : ""}
         </div>
         <button type="button" class="area-facility-detail-btn" data-id="${escapeHtml(item.id ?? "")}">温泉詳細</button>
+        ${extraButtonHtml}
       </div>
     `;
   }
@@ -6100,7 +6103,11 @@
         ${
           matchedFacilities.length
             ? `<div class="onsen-area-facility-list">${matchedFacilities
-                .map((item) => renderAreaFacilityCard(item))
+                .map((item) => {
+                  const removeLabel = type === "interested" ? "❤️ 気になるを取り消す" : "✅ 行ったことあるを取り消す";
+                  const removeBtn = `<button type="button" class="my-page-remove-btn secondary" data-id="${escapeHtml(item.id ?? "")}">${removeLabel}</button>`;
+                  return renderAreaFacilityCard(item, removeBtn);
+                })
                 .join("")}</div>`
             : `<p class="detail-empty">まだ登録されている施設がありません。</p>`
         }
@@ -6113,6 +6120,11 @@
     myPageView.querySelectorAll(".area-facility-detail-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
         location.hash = `#detail-${btn.dataset.id}`;
+      });
+    });
+    myPageView.querySelectorAll(".my-page-remove-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        toggleFacilityFlag(btn.dataset.id, type);
       });
     });
   }
