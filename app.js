@@ -799,23 +799,29 @@
     return html;
   }
 
-  function addHoursRangeRow(containerId, open = "", close = "", { focus = true } = {}) {
+  function addHoursRangeRow(containerId, open = "", close = "", { focus = true, lastEntry = null, withLastEntry = false } = {}) {
     const rows = $(containerId);
     if (!rows) return;
 
     const rowId = `hoursrange-${++hoursRangeRowSeq}`;
     const [openH = "", openM = ""] = (open || "").split(":");
     const [closeH = "", closeM = ""] = (close || "").split(":");
+    const [lastH = "", lastM = ""] = (lastEntry || "").split(":");
     const hourOptions = buildHourOptions();
     const minuteOptions = buildMinuteOptions();
 
     const row = document.createElement("div");
-    row.className = "rental-row hours-range-row";
+    row.className = withLastEntry ? "rental-row hours-range-row with-last-entry" : "rental-row hours-range-row";
     row.dataset.rowId = rowId;
     row.innerHTML = `
       <div class="time-select"><select class="hours-open-hour">${hourOptions}</select><span>:</span><select class="hours-open-minute">${minuteOptions}</select></div>
       <span>〜</span>
       <div class="time-select"><select class="hours-close-hour">${hourOptions}</select><span>:</span><select class="hours-close-minute">${minuteOptions}</select></div>
+      ${
+        withLastEntry
+          ? `<span class="hours-last-entry-label">最終受付</span><div class="time-select"><select class="hours-last-entry-hour">${hourOptions}</select><span>:</span><select class="hours-last-entry-minute">${minuteOptions}</select></div>`
+          : ""
+      }
       <button type="button" class="remove-rental" aria-label="この時間帯を削除">×</button>
     `;
     rows.appendChild(row);
@@ -824,11 +830,15 @@
     if (openM) row.querySelector(".hours-open-minute").value = openM;
     if (closeH) row.querySelector(".hours-close-hour").value = closeH;
     if (closeM) row.querySelector(".hours-close-minute").value = closeM;
+    if (withLastEntry) {
+      if (lastH) row.querySelector(".hours-last-entry-hour").value = lastH;
+      if (lastM) row.querySelector(".hours-last-entry-minute").value = lastM;
+    }
 
     if (focus) row.querySelector(".hours-open-hour")?.focus();
   }
 
-  function collectHoursRangeRows(containerId) {
+  function collectHoursRangeRows(containerId, { withLastEntry = false } = {}) {
     const rows = $(containerId);
     if (!rows) return [];
 
@@ -840,19 +850,31 @@
       const cm = row.querySelector(".hours-close-minute")?.value || "";
       const open = oh && om ? `${oh}:${om}` : "";
       const close = ch && cm ? `${ch}:${cm}` : "";
-      if (!open && !close) return;
-      result.push({ open, close });
+      let lastEntry = "";
+      if (withLastEntry) {
+        const lh = row.querySelector(".hours-last-entry-hour")?.value || "";
+        const lm = row.querySelector(".hours-last-entry-minute")?.value || "";
+        lastEntry = lh && lm ? `${lh}:${lm}` : "";
+      }
+      if (!open && !close && !lastEntry) return;
+      result.push(withLastEntry ? { open, close, lastEntry } : { open, close });
     });
 
     return result;
   }
 
-  function populateHoursRangeRows(containerId, items) {
+  function populateHoursRangeRows(containerId, items, { withLastEntry = false } = {}) {
     const rows = $(containerId);
     if (!rows) return;
     rows.innerHTML = "";
     if (!Array.isArray(items) || !items.length) return;
-    items.forEach((it) => addHoursRangeRow(containerId, it.open || "", it.close || "", { focus: false }));
+    items.forEach((it) =>
+      addHoursRangeRow(containerId, it.open || "", it.close || "", {
+        focus: false,
+        lastEntry: it.lastEntry || "",
+        withLastEntry
+      })
+    );
   }
 
   function addBenefitRow(containerId, service = "", content = "", { focus = true } = {}) {
@@ -956,15 +978,18 @@
       overnight_close_time: timeValue("overnightClose"),
       overnight_last_entry: timeValue("overnightLastEntry"),
       overnight_days: checkedValues("overnightDays"),
+      overnight_additional_hours: collectHoursRangeRows("overnightAdditionalHoursRows", { withLastEntry: true }),
       morning_bath_open_time: timeValue("morningBathOpen"),
       morning_bath_close_time: timeValue("morningBathClose"),
       morning_bath_last_entry: timeValue("morningBathLastEntry"),
       morning_bath_days: checkedValues("morningBathDays"),
+      morning_bath_additional_hours: collectHoursRangeRows("morningBathAdditionalHoursRows", { withLastEntry: true }),
       other_hours_label: value("otherHoursLabel"),
       other_hours_open_time: timeValue("otherHoursOpen"),
       other_hours_close_time: timeValue("otherHoursClose"),
       other_hours_last_entry: timeValue("otherHoursLastEntry"),
       other_hours_days: checkedValues("otherHoursDays"),
+      other_hours_additional_hours: collectHoursRangeRows("otherHoursAdditionalHoursRows", { withLastEntry: true }),
       closed_nth_weeks: checkedBool("closedNthWeekdayEnabled")
         ? checkedValues("closedNthWeek")
         : null,
@@ -2021,15 +2046,18 @@
     setTimeValue("overnightClose", item.overnight_close_time);
     setTimeValue("overnightLastEntry", item.overnight_last_entry);
     setCheckboxGroup("overnightDays", ["日", "月", "火", "水", "木", "金", "土"], item.overnight_days);
+    populateHoursRangeRows("overnightAdditionalHoursRows", item.overnight_additional_hours, { withLastEntry: true });
     setTimeValue("morningBathOpen", item.morning_bath_open_time);
     setTimeValue("morningBathClose", item.morning_bath_close_time);
     setTimeValue("morningBathLastEntry", item.morning_bath_last_entry);
     setCheckboxGroup("morningBathDays", ["日", "月", "火", "水", "木", "金", "土"], item.morning_bath_days);
+    populateHoursRangeRows("morningBathAdditionalHoursRows", item.morning_bath_additional_hours, { withLastEntry: true });
     setValue("otherHoursLabel", item.other_hours_label);
     setTimeValue("otherHoursOpen", item.other_hours_open_time);
     setTimeValue("otherHoursClose", item.other_hours_close_time);
     setTimeValue("otherHoursLastEntry", item.other_hours_last_entry);
     setCheckboxGroup("otherHoursDays", ["日", "月", "火", "水", "木", "金", "土"], item.other_hours_days);
+    populateHoursRangeRows("otherHoursAdditionalHoursRows", item.other_hours_additional_hours, { withLastEntry: true });
     if (Array.isArray(item.closed_nth_weeks) && item.closed_nth_weeks.length) {
       $("closedNthWeekdayEnabled").checked = true;
       $("closedNthWeekdayWrap")?.classList.remove("hidden");
@@ -3066,9 +3094,9 @@
     "is_24_hours",
     "temp_closed_detail",
     "weekday_hours_overrides",
-    "overnight_open_time", "overnight_close_time", "overnight_last_entry", "overnight_days",
-    "morning_bath_open_time", "morning_bath_close_time", "morning_bath_last_entry", "morning_bath_days",
-    "other_hours_label", "other_hours_open_time", "other_hours_close_time", "other_hours_last_entry", "other_hours_days",
+    "overnight_open_time", "overnight_close_time", "overnight_last_entry", "overnight_days", "overnight_additional_hours",
+    "morning_bath_open_time", "morning_bath_close_time", "morning_bath_last_entry", "morning_bath_days", "morning_bath_additional_hours",
+    "other_hours_label", "other_hours_open_time", "other_hours_close_time", "other_hours_last_entry", "other_hours_days", "other_hours_additional_hours",
     "closed_nth_weeks", "closed_nth_weekday", "closed_monthly_dates",
     "closed_irregular", "closed_calendar_based", "closed_holiday_rule", "closed_day_pattern_note",
     "access_method", "accommodation_status", "address", "aed_facility_status", 
@@ -4218,17 +4246,25 @@
 
     // 通常営業時間・曜日別営業時間・宿泊者限定・朝風呂・その他の営業時間、
     // すべての時間帯を候補として、現在時刻がどこに当てはまるか調べる
+    const additionalWindows = (days, list) =>
+      daysMatchToday(days) && Array.isArray(list)
+        ? list.map((w) => ({ open: w.open, close: w.close, lastEntry: w.lastEntry }))
+        : [];
+
     const candidateWindows = [
       { open: effectiveOpenTime, close: effectiveCloseTime, lastEntry: effectiveLastEntry },
       daysMatchToday(item.overnight_days)
         ? { open: item.overnight_open_time, close: item.overnight_close_time, lastEntry: item.overnight_last_entry }
         : null,
+      ...additionalWindows(item.overnight_days, item.overnight_additional_hours),
       daysMatchToday(item.morning_bath_days)
         ? { open: item.morning_bath_open_time, close: item.morning_bath_close_time, lastEntry: item.morning_bath_last_entry }
         : null,
+      ...additionalWindows(item.morning_bath_days, item.morning_bath_additional_hours),
       daysMatchToday(item.other_hours_days)
         ? { open: item.other_hours_open_time, close: item.other_hours_close_time, lastEntry: item.other_hours_last_entry }
-        : null
+        : null,
+      ...additionalWindows(item.other_hours_days, item.other_hours_additional_hours)
     ].filter((w) => w && w.open && w.close);
 
     if (!candidateWindows.length) return null;
@@ -4404,16 +4440,34 @@
               Array.isArray(days) && days.length ? `（${days.map((d) => `${d}曜`).join("・")}）` : "";
             const lastEntrySuffix = (t) => (t ? `（最終受付${escapeHtml(t)}）` : "");
 
+            const additionalRows = (icon, label, days, list) =>
+              Array.isArray(list)
+                ? list
+                    .filter((w) => w.open || w.close)
+                    .map(
+                      (w) =>
+                        `${icon} ${label}：${escapeHtml(w.open || "?")}〜${escapeHtml(w.close || "?")}${lastEntrySuffix(w.lastEntry)}${escapeHtml(daysSuffix(days))}`
+                    )
+                : [];
+
             const rows = [
               item.overnight_open_time || item.overnight_close_time
                 ? `🛌 宿泊者限定：${escapeHtml(item.overnight_open_time || "?")}〜${escapeHtml(item.overnight_close_time || "?")}${lastEntrySuffix(item.overnight_last_entry)}${escapeHtml(daysSuffix(item.overnight_days))}`
                 : null,
+              ...additionalRows("🛌", "宿泊者限定", item.overnight_days, item.overnight_additional_hours),
               item.morning_bath_open_time || item.morning_bath_close_time
                 ? `🌅 朝風呂：${escapeHtml(item.morning_bath_open_time || "?")}〜${escapeHtml(item.morning_bath_close_time || "?")}${lastEntrySuffix(item.morning_bath_last_entry)}${escapeHtml(daysSuffix(item.morning_bath_days))}`
                 : null,
+              ...additionalRows("🌅", "朝風呂", item.morning_bath_days, item.morning_bath_additional_hours),
               item.other_hours_open_time || item.other_hours_close_time
                 ? `🕒 ${escapeHtml(item.other_hours_label || "その他の営業時間")}：${escapeHtml(item.other_hours_open_time || "?")}〜${escapeHtml(item.other_hours_close_time || "?")}${lastEntrySuffix(item.other_hours_last_entry)}${escapeHtml(daysSuffix(item.other_hours_days))}`
-                : null
+                : null,
+              ...additionalRows(
+                "🕒",
+                item.other_hours_label || "その他の営業時間",
+                item.other_hours_days,
+                item.other_hours_additional_hours
+              )
             ].filter(Boolean);
 
             return rows.map((r) => `<p class="detail-note">${r}</p>`).join("");
@@ -6562,7 +6616,7 @@
     if (otherFeeRows) {
       otherFeeRows.innerHTML = "";
     }
-    ["ticketFeeRows", "disabilityFeeRows", "memberBenefitRows", "specialCouponRows", "restaurantAdditionalHoursRows", "shopAdditionalHoursRows", "massageAdditionalHoursRows", "convenienceStoreHoursRows"].forEach((id) => {
+    ["ticketFeeRows", "disabilityFeeRows", "memberBenefitRows", "specialCouponRows", "restaurantAdditionalHoursRows", "shopAdditionalHoursRows", "massageAdditionalHoursRows", "convenienceStoreHoursRows", "overnightAdditionalHoursRows", "morningBathAdditionalHoursRows", "otherHoursAdditionalHoursRows"].forEach((id) => {
       const el = $(id);
       if (el) el.innerHTML = "";
     });
@@ -6796,6 +6850,30 @@
       addHoursRangeRow("restaurantAdditionalHoursRows")
     );
     $("restaurantAdditionalHoursRows")?.addEventListener("click", (event) => {
+      const button = event.target.closest(".remove-rental");
+      if (!button) return;
+      button.closest(".hours-range-row")?.remove();
+    });
+    $("addOvernightAdditionalHours")?.addEventListener("click", () =>
+      addHoursRangeRow("overnightAdditionalHoursRows", "", "", { withLastEntry: true })
+    );
+    $("overnightAdditionalHoursRows")?.addEventListener("click", (event) => {
+      const button = event.target.closest(".remove-rental");
+      if (!button) return;
+      button.closest(".hours-range-row")?.remove();
+    });
+    $("addMorningBathAdditionalHours")?.addEventListener("click", () =>
+      addHoursRangeRow("morningBathAdditionalHoursRows", "", "", { withLastEntry: true })
+    );
+    $("morningBathAdditionalHoursRows")?.addEventListener("click", (event) => {
+      const button = event.target.closest(".remove-rental");
+      if (!button) return;
+      button.closest(".hours-range-row")?.remove();
+    });
+    $("addOtherHoursAdditionalHours")?.addEventListener("click", () =>
+      addHoursRangeRow("otherHoursAdditionalHoursRows", "", "", { withLastEntry: true })
+    );
+    $("otherHoursAdditionalHoursRows")?.addEventListener("click", (event) => {
       const button = event.target.closest(".remove-rental");
       if (!button) return;
       button.closest(".hours-range-row")?.remove();
