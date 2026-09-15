@@ -3357,6 +3357,7 @@
       [item.bath_shape_male, item.bath_shape_female].some(
         (arr) => Array.isArray(arr) && arr.includes("露天風呂・半露天風呂")
       ),
+    "朝風呂": (item) => Boolean(item.morning_bath_open_time || item.morning_bath_close_time),
     "家族風呂": (item) =>
       [item.bath_shape_male, item.bath_shape_female].some(
         (arr) => Array.isArray(arr) && arr.includes("家族風呂")
@@ -3680,6 +3681,7 @@
   const CATEGORY_TAG_EMOJIS = {
     "日帰り入浴可": "♨️",
     "露天風呂": "♨️",
+    "朝風呂": "☀️",
     "家族風呂": "👨‍👩‍👦",
     "サウナ": "🧖‍♀️",
     "ロウリュ": "🔥",
@@ -3809,6 +3811,11 @@
 
         const closedDaysText = getClosedDayTags(item).join("・");
 
+        const morningBathHoursText =
+          item.morning_bath_open_time || item.morning_bath_close_time
+            ? `${item.morning_bath_open_time || "?"}〜${item.morning_bath_close_time || "?"}`
+            : "";
+
         const categoryTags = Object.keys(CATEGORY_TAG_EMOJIS).filter((cat) => {
           const matcher = FACILITY_CATEGORY_MATCHERS[cat];
           return matcher ? matcher(item) : false;
@@ -3840,6 +3847,7 @@
             </div>
 
             ${hoursText ? `<p>🕒 営業時間：${escapeHtml(hoursText)}</p>` : ""}
+            ${morningBathHoursText ? `<p>☀️ 朝風呂：${escapeHtml(morningBathHoursText)}</p>` : ""}
             ${closedDaysText ? `<p>🗓 定休日：${escapeHtml(closedDaysText)}</p>` : ""}
             ${item.is_temp_closed && item.temp_closed_detail ? `<p class="card-temp-closed-detail">${escapeHtml(item.temp_closed_detail)}</p>` : ""}
             ${(() => {
