@@ -7859,7 +7859,8 @@
   function initMap() {
     if (leafletMap || !window.L || !$("mapContainer")) return;
 
-    leafletMap = L.map("mapContainer").setView([36.5, 138.0], 5);
+    leafletMap = L.map("mapContainer", { zoomControl: false }).setView([36.5, 138.0], 5);
+    L.control.zoom({ position: "bottomright" }).addTo(leafletMap);
 
     const mapboxToken = window.ONSEN_MAPBOX_CONFIG?.accessToken;
 
