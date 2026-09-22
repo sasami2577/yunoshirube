@@ -70,10 +70,10 @@ body.ad-banner-visible{padding-bottom:80px}
 .map-toolbar button{background:#f2efed;color:#403730;border:1px solid #e1dcd7;font-size:13px;padding:8px 14px}
 #mapContainer{height:320px;border-radius:18px;overflow:hidden;border:1px solid #e8e4e0;background:#f2f0ee}
 .map-popup{font-size:14px}
-.map-popup b{display:block;margin:0;font-size:16px;color:#202124;font-weight:600;line-height:1.2}
+.map-popup b{display:block;margin:0 0 3px;font-size:16px;color:#202124;font-weight:600;line-height:1.2}
 .map-popup a{color:#1a73e8;font-weight:500;text-decoration:none}
 .map-popup a:hover{text-decoration:underline}
-.leaflet-popup-content p.map-popup-place{margin:0!important;line-height:1.2;color:#70757a;font-size:13px}
+.leaflet-popup-content p.map-popup-place{margin:0 0 4px!important;line-height:1.2;color:#70757a;font-size:13px}
 .map-popup .status-badge{display:inline-block;margin:0}
 .map-popup-links{display:flex;flex-direction:column;gap:4px;margin-top:5px}
 .leaflet-control-zoom{border:none!important;box-shadow:0 1px 4px 1px rgba(0,0,0,.28)!important;border-radius:2px!important}
