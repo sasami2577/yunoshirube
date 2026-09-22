@@ -67,8 +67,9 @@ details.filter-region>.filter-city-slot:not(:empty){margin-top:6px}
 .filter-category-card{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border-radius:14px;border:3px solid transparent;cursor:pointer;background:#faf7f4;padding:8px 6px}
 .filter-category-card input{position:absolute;opacity:0;width:0;height:0;margin:0;pointer-events:none}
 .filter-category-card:has(input:checked){border-color:#d64545;box-shadow:0 0 0 2px #d64545 inset;background:#fdecea}
-.filter-business-type-emoji,.filter-business-type-label{color:#2c2622;text-shadow:-1px -1px 0 #fff,1px -1px 0 #fff,-1px 1px 0 #fff,1px 1px 0 #fff,0 0 3px #fff,0 0 3px #fff}
-.filter-business-type-card:has(input:checked){border-color:#d64545;box-shadow:0 0 0 3px #d64545 inset}
+.filter-business-type-emoji,.filter-business-type-label{color:#2c2622}
+.filter-business-type-card{background:#faf7f4}
+.filter-business-type-card:has(input:checked){border-color:var(--bt-color,#d64545);box-shadow:0 0 0 3px var(--bt-color,#d64545) inset;background:#fff}
 .filter-category-card-emoji{font-size:28px}
 .filter-category-card-label{font-size:13px;font-weight:700;color:#403730}
 @media(max-width:600px){.filter-category-grid{grid-template-columns:repeat(2,1fr)}}
