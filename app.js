@@ -3795,6 +3795,10 @@
         outlineColors.push("#e8c300");
         badges.push({ cls: "card-corner-badge-member", label: "👤 会員制" });
       }
+      if (item.usage.includes("要予約")) {
+        outlineColors.push("#e0761f");
+        badges.push({ cls: "card-corner-badge-reservation", label: "📅 要予約" });
+      }
     }
 
     const outlineStyle = buildOutlineStyle(outlineColors);
