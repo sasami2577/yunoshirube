@@ -7828,13 +7828,10 @@
       }
     },
     osm: {
-      url: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+      url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
       options: {
-        maxZoom: 20,
-        subdomains: "abcd",
-        attribution:
-          '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors ' +
-          '&copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>'
+        maxZoom: 18,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors'
       }
     }
   };
@@ -7862,8 +7859,7 @@
   function initMap() {
     if (leafletMap || !window.L || !$("mapContainer")) return;
 
-    leafletMap = L.map("mapContainer", { zoomControl: false }).setView([36.5, 138.0], 5);
-    L.control.zoom({ position: "bottomright" }).addTo(leafletMap);
+    leafletMap = L.map("mapContainer").setView([36.5, 138.0], 5);
 
     const mapboxToken = window.ONSEN_MAPBOX_CONFIG?.accessToken;
 
