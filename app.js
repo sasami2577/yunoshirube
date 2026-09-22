@@ -473,6 +473,12 @@
       .replaceAll("'", "&#039;");
   }
 
+  // 表示用：時刻の先頭0を除去（例："06:00" → "6:00"）。<input type="time"> の値設定には使わないこと。
+  function ft(v) {
+    if (v === null || v === undefined || v === "") return v;
+    return String(v).replace(/^0(\d):/, "$1:");
+  }
+
   // ---------------------------------------------------------
   // 市区町村・地域の選択肢を都道府県に応じて作る
   // ---------------------------------------------------------
@@ -3802,15 +3808,33 @@
     return { outlineStyle, outlineColors, badgesHtml };
   }
 
+  const LIST_PAGE_SIZE = 50;
+  let listDisplayLimit = LIST_PAGE_SIZE;
+  let lastListFilterSignature = null;
+  let lastRenderCardsList = null;
+
   function renderCards(list) {
     const cards = $("cards");
     const count = $("count");
 
     if (!cards) return;
 
+    lastRenderCardsList = list;
+
     const search = value("search").toLowerCase();
     const filtered = getFilteredSortedList(list);
     const userLoc = window.__userLocation;
+
+    // 検索・絞り込み・並び順が変わったら表示件数を50件にリセットする
+    const filterSignature = JSON.stringify({
+      search,
+      filters: window.__activeFacetFilters || null,
+      sort: value("sortModeSelect")
+    });
+    if (filterSignature !== lastListFilterSignature) {
+      listDisplayLimit = LIST_PAGE_SIZE;
+      lastListFilterSignature = filterSignature;
+    }
 
     if (count) {
       count.textContent = `${filtered.length}件`;
@@ -3833,6 +3857,8 @@
           }
         </div>
       `;
+      const showMoreButton = $("showMoreButton");
+      showMoreButton?.classList.add("hidden");
       return;
     }
 
@@ -3847,9 +3873,11 @@
       }
     }
 
+    const visibleFiltered = filtered.slice(0, listDisplayLimit);
+
     cards.innerHTML =
       pinnedBannerHtml +
-      filtered
+      visibleFiltered
         .map((item) => {
         const address = item.address || "";
 
@@ -3863,14 +3891,14 @@
         const hoursText = item.is_24_hours
           ? "24時間営業"
           : item.open_time || item.close_time
-          ? `${item.open_time || "?"}〜${item.close_time || "?"}`
+          ? `${ft(item.open_time) || "?"}〜${ft(item.close_time) || "?"}`
           : "";
 
         const closedDaysText = getClosedDayTags(item).join("・");
 
         const morningBathHoursText =
           item.morning_bath_open_time || item.morning_bath_close_time
-            ? `${item.morning_bath_open_time || "?"}〜${item.morning_bath_close_time || "?"}`
+            ? `${ft(item.morning_bath_open_time) || "?"}〜${ft(item.morning_bath_close_time) || "?"}`
             : "";
 
         const categoryTags = Object.keys(CATEGORY_TAG_EMOJIS).filter((cat) => {
@@ -3969,6 +3997,11 @@
         `;
       })
       .join("");
+
+    const showMoreButton = $("showMoreButton");
+    if (showMoreButton) {
+      showMoreButton.classList.toggle("hidden", filtered.length <= listDisplayLimit);
+    }
   }
 
   // ---------------------------------------------------------
@@ -4091,8 +4124,18 @@
     "プール施設": { emoji: "🏊", bg: "#3b6fd6", color: "#fff" },
     "アウトドア施設": { emoji: "🏕", bg: "#3f9142", color: "#fff" },
     "スポーツジム": { emoji: "🏃‍♀️", bg: "#4fb3d9", color: "#fff" },
-    "複合施設": { emoji: "🎡", bg: "#e0629c", color: "#fff" }
+    "複合施設": { emoji: "🎡", bg: "#e0629c", color: "#fff" },
+    "その他": { emoji: "🏢", bg: "#ffffff", color: "#4a3b00", border: "1px solid #e1dcd7" }
   };
+
+  // 業態の表示名の上書き（保存される値はそのままで、表示テキストだけ変える）
+  const BUSINESS_TYPE_DISPLAY_LABELS = {
+    "その他": "その他の施設"
+  };
+
+  function businessTypeDisplayLabel(businessType) {
+    return BUSINESS_TYPE_DISPLAY_LABELS[businessType] || businessType;
+  }
 
   function renderBusinessTypeBadge(businessType) {
     if (!businessType) {
@@ -4107,8 +4150,8 @@
 
     return `
       <p class="detail-note-tight">
-        <span class="type-badge" style="background:${style.bg};color:${style.color}">
-          ${style.emoji} ${escapeHtml(businessType)}
+        <span class="type-badge" style="background:${style.bg};color:${style.color}${style.border ? `;border:${style.border}` : ""}">
+          ${style.emoji} ${escapeHtml(businessTypeDisplayLabel(businessType))}
         </span>
       </p>
     `;
@@ -4357,7 +4400,7 @@
     const hours = item.is_24_hours
       ? "24時間営業"
       : item.open_time || item.close_time
-      ? `${item.open_time || ""}${item.open_time || item.close_time ? "〜" : ""}${item.close_time || ""}`
+      ? `${ft(item.open_time) || ""}${item.open_time || item.close_time ? "〜" : ""}${ft(item.close_time) || ""}`
       : "";
 
     const links = [
@@ -4459,12 +4502,12 @@
           ${detailSubhead("🕒 営業時間")}
           <div class="detail-grid">
             ${detailField("営業時間", hours)}
-            ${detailField("最終受付", item.last_entry)}
+            ${detailField("最終受付", ft(item.last_entry))}
           </div>
           ${
             item.weekday_hours_overrides && Object.keys(item.weekday_hours_overrides).length
               ? `<p class="detail-note">🗓 ${Object.entries(item.weekday_hours_overrides)
-                  .map(([day, t]) => `${escapeHtml(day === "祝" ? "祝日" : `${day}曜`)}：${escapeHtml(t.open || "?")}〜${escapeHtml(t.close || "?")}${t.lastEntry ? `（最終受付${escapeHtml(t.lastEntry)}）` : ""}`)
+                  .map(([day, t]) => `${escapeHtml(day === "祝" ? "祝日" : `${day}曜`)}：${escapeHtml(ft(t.open) || "?")}〜${escapeHtml(ft(t.close) || "?")}${t.lastEntry ? `（最終受付${escapeHtml(ft(t.lastEntry))}）` : ""}`)
                   .join("　")}</p>`
               : ""
           }
@@ -4474,7 +4517,7 @@
               Array.isArray(days) && days.length
                 ? `（${days.map((d) => (d === "祝" ? "祝日" : `${d}曜`)).join("・")}）`
                 : "";
-            const lastEntrySuffix = (t) => (t ? `（最終受付${escapeHtml(t)}）` : "");
+            const lastEntrySuffix = (t) => (t ? `（最終受付${escapeHtml(ft(t))}）` : "");
 
             const additionalRows = (icon, label, parentDays, list) =>
               Array.isArray(list)
@@ -4482,21 +4525,21 @@
                     .filter((w) => w.open || w.close)
                     .map((w) => {
                       const rowDays = Array.isArray(w.days) && w.days.length ? w.days : parentDays;
-                      return `${icon} ${label}：${escapeHtml(w.open || "?")}〜${escapeHtml(w.close || "?")}${lastEntrySuffix(w.lastEntry)}${escapeHtml(daysSuffix(rowDays))}`;
+                      return `${icon} ${label}：${escapeHtml(ft(w.open) || "?")}〜${escapeHtml(ft(w.close) || "?")}${lastEntrySuffix(w.lastEntry)}${escapeHtml(daysSuffix(rowDays))}`;
                     })
                 : [];
 
             const rows = [
               item.overnight_open_time || item.overnight_close_time
-                ? `🛌 宿泊者限定：${escapeHtml(item.overnight_open_time || "?")}〜${escapeHtml(item.overnight_close_time || "?")}${lastEntrySuffix(item.overnight_last_entry)}${escapeHtml(daysSuffix(item.overnight_days))}`
+                ? `🛌 宿泊者限定：${escapeHtml(ft(item.overnight_open_time) || "?")}〜${escapeHtml(ft(item.overnight_close_time) || "?")}${lastEntrySuffix(item.overnight_last_entry)}${escapeHtml(daysSuffix(item.overnight_days))}`
                 : null,
               ...additionalRows("🛌", "宿泊者限定", item.overnight_days, item.overnight_additional_hours),
               item.morning_bath_open_time || item.morning_bath_close_time
-                ? `🌅 朝風呂：${escapeHtml(item.morning_bath_open_time || "?")}〜${escapeHtml(item.morning_bath_close_time || "?")}${lastEntrySuffix(item.morning_bath_last_entry)}${escapeHtml(daysSuffix(item.morning_bath_days))}`
+                ? `🌅 朝風呂：${escapeHtml(ft(item.morning_bath_open_time) || "?")}〜${escapeHtml(ft(item.morning_bath_close_time) || "?")}${lastEntrySuffix(item.morning_bath_last_entry)}${escapeHtml(daysSuffix(item.morning_bath_days))}`
                 : null,
               ...additionalRows("🌅", "朝風呂", item.morning_bath_days, item.morning_bath_additional_hours),
               item.other_hours_open_time || item.other_hours_close_time
-                ? `🕒 ${escapeHtml(item.other_hours_label || "その他の営業時間")}：${escapeHtml(item.other_hours_open_time || "?")}〜${escapeHtml(item.other_hours_close_time || "?")}${lastEntrySuffix(item.other_hours_last_entry)}${escapeHtml(daysSuffix(item.other_hours_days))}`
+                ? `🕒 ${escapeHtml(item.other_hours_label || "その他の営業時間")}：${escapeHtml(ft(item.other_hours_open_time) || "?")}〜${escapeHtml(ft(item.other_hours_close_time) || "?")}${lastEntrySuffix(item.other_hours_last_entry)}${escapeHtml(daysSuffix(item.other_hours_days))}`
                 : null,
               ...additionalRows(
                 "🕒",
@@ -4805,25 +4848,25 @@
                   ${detailField(
                     "平日",
                     item.sauna_hours_weekday_open_male || item.sauna_hours_weekday_close_male
-                      ? `${item.sauna_hours_weekday_open_male || "?"}〜${item.sauna_hours_weekday_close_male || "?"}`
+                      ? `${ft(item.sauna_hours_weekday_open_male) || "?"}〜${ft(item.sauna_hours_weekday_close_male) || "?"}`
                       : ""
                   )}
                   ${detailField(
                     "土曜日",
                     item.sauna_hours_saturday_open_male || item.sauna_hours_saturday_close_male
-                      ? `${item.sauna_hours_saturday_open_male || "?"}〜${item.sauna_hours_saturday_close_male || "?"}`
+                      ? `${ft(item.sauna_hours_saturday_open_male) || "?"}〜${ft(item.sauna_hours_saturday_close_male) || "?"}`
                       : ""
                   )}
                   ${detailField(
                     "日曜日",
                     item.sauna_hours_sunday_open_male || item.sauna_hours_sunday_close_male
-                      ? `${item.sauna_hours_sunday_open_male || "?"}〜${item.sauna_hours_sunday_close_male || "?"}`
+                      ? `${ft(item.sauna_hours_sunday_open_male) || "?"}〜${ft(item.sauna_hours_sunday_close_male) || "?"}`
                       : ""
                   )}
                   ${detailField(
                     "祝日",
                     item.sauna_hours_holiday_open_male || item.sauna_hours_holiday_close_male
-                      ? `${item.sauna_hours_holiday_open_male || "?"}〜${item.sauna_hours_holiday_close_male || "?"}`
+                      ? `${ft(item.sauna_hours_holiday_open_male) || "?"}〜${ft(item.sauna_hours_holiday_close_male) || "?"}`
                       : ""
                   )}
                 </div>
@@ -4984,25 +5027,25 @@
                   ${detailField(
                     "平日",
                     item.sauna_hours_weekday_open_female || item.sauna_hours_weekday_close_female
-                      ? `${item.sauna_hours_weekday_open_female || "?"}〜${item.sauna_hours_weekday_close_female || "?"}`
+                      ? `${ft(item.sauna_hours_weekday_open_female) || "?"}〜${ft(item.sauna_hours_weekday_close_female) || "?"}`
                       : ""
                   )}
                   ${detailField(
                     "土曜日",
                     item.sauna_hours_saturday_open_female || item.sauna_hours_saturday_close_female
-                      ? `${item.sauna_hours_saturday_open_female || "?"}〜${item.sauna_hours_saturday_close_female || "?"}`
+                      ? `${ft(item.sauna_hours_saturday_open_female) || "?"}〜${ft(item.sauna_hours_saturday_close_female) || "?"}`
                       : ""
                   )}
                   ${detailField(
                     "日曜日",
                     item.sauna_hours_sunday_open_female || item.sauna_hours_sunday_close_female
-                      ? `${item.sauna_hours_sunday_open_female || "?"}〜${item.sauna_hours_sunday_close_female || "?"}`
+                      ? `${ft(item.sauna_hours_sunday_open_female) || "?"}〜${ft(item.sauna_hours_sunday_close_female) || "?"}`
                       : ""
                   )}
                   ${detailField(
                     "祝日",
                     item.sauna_hours_holiday_open_female || item.sauna_hours_holiday_close_female
-                      ? `${item.sauna_hours_holiday_open_female || "?"}〜${item.sauna_hours_holiday_close_female || "?"}`
+                      ? `${ft(item.sauna_hours_holiday_open_female) || "?"}〜${ft(item.sauna_hours_holiday_close_female) || "?"}`
                       : ""
                   )}
                 </div>
@@ -5401,8 +5444,8 @@
           ${
             item.restaurant_hours_type === "営業時間あり"
               ? `<div class="detail-grid">
-                  ${detailField("開店時間", item.restaurant_open_time)}
-                  ${detailField("閉店時間", item.restaurant_close_time)}
+                  ${detailField("開店時間", ft(item.restaurant_open_time))}
+                  ${detailField("閉店時間", ft(item.restaurant_close_time))}
                   ${detailField("ラストオーダー", item.restaurant_last_order)}
                 </div>`
               : ""
@@ -5434,8 +5477,8 @@
           ${
             item.shop_hours_type === "利用時間あり"
               ? `<div class="detail-grid">
-                  ${detailField("開始", item.shop_hours_open)}
-                  ${detailField("終了", item.shop_hours_close)}
+                  ${detailField("開始", ft(item.shop_hours_open))}
+                  ${detailField("終了", ft(item.shop_hours_close))}
                 </div>`
               : ""
           }
@@ -5465,8 +5508,8 @@
           ${
             item.rest_space_hours_type === "利用時間あり"
               ? `<div class="detail-grid">
-                  ${detailField("開始", item.rest_space_hours_open)}
-                  ${detailField("終了", item.rest_space_hours_close)}
+                  ${detailField("開始", ft(item.rest_space_hours_open))}
+                  ${detailField("終了", ft(item.rest_space_hours_close))}
                 </div>`
               : ""
           }
@@ -5508,8 +5551,8 @@
           ${
             item.massage_hours_type === "営業時間あり"
               ? `<div class="detail-grid">
-                  ${detailField("開始", item.massage_hours_open)}
-                  ${detailField("終了", item.massage_hours_close)}
+                  ${detailField("開始", ft(item.massage_hours_open))}
+                  ${detailField("終了", ft(item.massage_hours_close))}
                 </div>`
               : ""
           }
@@ -5877,7 +5920,7 @@
     const hoursText = item.is_24_hours
       ? "24時間営業"
       : item.open_time || item.close_time
-      ? `${item.open_time || "?"}〜${item.close_time || "?"}`
+      ? `${ft(item.open_time) || "?"}〜${ft(item.close_time) || "?"}`
       : "";
     const closedDaysText = getClosedDayTags(item).join("・");
     const priceParts = Array.isArray(item.bath_fees)
@@ -7522,6 +7565,11 @@
       window.scrollTo({ top: 0, behavior: "smooth" });
     });
 
+    $("showMoreButton")?.addEventListener("click", () => {
+      listDisplayLimit += LIST_PAGE_SIZE;
+      renderCards(lastRenderCardsList || window.__onsenData || []);
+    });
+
     $("mapStyleToggleButton")?.addEventListener("click", () => {
       applyMapStyle(currentMapStyle === "aerial" ? "osm" : "aerial");
     });
@@ -7842,8 +7890,8 @@
       .map(
         ([type, style]) => `
           <span class="map-legend-item">
-            <span class="map-legend-dot" style="background:${style.bg}">${style.emoji}</span>
-            ${escapeHtml(type)}
+            <span class="map-legend-dot" style="background:${style.bg}${style.border ? `;border:${style.border}` : ""}">${style.emoji}</span>
+            ${escapeHtml(businessTypeDisplayLabel(type))}
           </span>
         `
       )

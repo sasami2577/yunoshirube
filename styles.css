@@ -7,14 +7,14 @@
 .ad-banner-wrap.hidden{display:none}
 body.ad-banner-visible{padding-bottom:80px}
 .feedback-link{background:none;border:none;color:#875020;font-weight:700;font-size:14px;text-decoration:underline;cursor:pointer}
-.hero{padding:38px 20px 15px;background:linear-gradient(135deg,#f5ebe3,#fcfbfa)}
+.hero{padding:38px 20px 6px;background:linear-gradient(135deg,#f5ebe3,#fcfbfa)}
 .hero-banner{width:100%;max-width:720px;height:auto;border-radius:18px;display:block;margin:0 0 20px;box-shadow:0 6px 20px #16130f1a}
 .hero h1{font-size:26px;margin:0 0 8px}
 .hero p{color:#706760}
 .facility-count{font-size:13px;color:#807a74;line-height:1.7;margin:0 0 18px}
 .info-disclaimer-box{background:#fff6cf;border:1px solid #e8d27a;border-radius:12px;padding:12px 14px;font-size:12px;line-height:1.7;color:#5c4c1a;margin:0 0 18px}
 .facility-count #facilityCount{font-weight:700;color:#875020;font-size:15px}
-.hero input{width:min(720px,100%);padding:15px;border:1px solid #e3ddd7;border-radius:14px;font-size:16px;background:#fff}main{max-width:1000px;margin:auto;padding:10px 20px 25px}.title{display:flex;align-items:center;gap:10px}.title h2{margin:0 0 15px}#count{color:#837d77}
+.hero input{width:min(720px,100%);padding:15px;border:1px solid #e3ddd7;border-radius:14px;font-size:16px;background:#fff}main{max-width:1000px;margin:auto;padding:4px 20px 25px}.title{display:flex;align-items:center;gap:10px}.title h2{margin:0 0 15px}#count{color:#837d77}
 .hero-add-button{display:block;width:min(720px,100%);background:#875020;color:#fff;border:none;font-weight:700;font-size:15px;padding:14px;border-radius:14px;margin:16px 0;cursor:pointer;text-align:center}
 .feedback-link-header{background:#f4faf6;color:#177144;border:1px solid #cfe1d6;font-weight:700;font-size:12px;padding:9px 12px;border-radius:10px;cursor:pointer;white-space:nowrap}
 .header-actions{display:flex;gap:8px;align-items:center;justify-content:flex-end}
@@ -26,8 +26,13 @@ body.ad-banner-visible{padding-bottom:80px}
 .auth-divider::before,.auth-divider::after{content:"";flex:1;height:1px;background:#e6e1dd}
 .auth-google-button{width:100%;background:#fff;color:#3c4043;border:1px solid #dadce0}
 .map-section{margin-bottom:25px}
+.half-fill-heading{display:inline-block;padding:1px 8px;background-repeat:no-repeat;border-radius:4px}
+.half-fill-heading.half-fill-green{background-image:linear-gradient(to bottom,transparent 52%,#a8dab5 52%)}
+.half-fill-heading.half-fill-yellow{background-image:linear-gradient(to bottom,transparent 52%,#ffe58a 52%)}
+.show-more-button{display:block;width:100%;background:#faf7f4;color:#403730;border:1px solid #e6e1dc;font-weight:700;font-size:14px;padding:12px;border-radius:12px;margin-top:14px;text-align:center;cursor:pointer}
+@media(orientation:landscape){.show-more-button{max-width:600px;margin-left:auto;margin-right:auto}}
 .filter-open-button{display:block;width:100%;background:#f4faf6;color:#177144;border:1px solid #cfe1d6;font-weight:700;font-size:15px;padding:14px;border-radius:14px;margin-bottom:8px;text-align:center}
-.areas-open-button{display:block;width:100%;background:#fff6ec;color:#a85a12;border:1px solid #f0d3a8;font-weight:700;font-size:15px;padding:14px;border-radius:14px;margin-bottom:20px;text-align:center}
+.areas-open-button{display:block;width:100%;background:#fff6ec;color:#a85a12;border:1px solid #f0d3a8;font-weight:700;font-size:15px;padding:14px;border-radius:14px;margin-bottom:12px;text-align:center}
 .areas-page-body{padding:20px;max-width:900px;margin:0 auto}
 .areas-page-body h1{font-size:22px;margin:0 0 20px}
 .onsen-area-group{margin-bottom:36px}
@@ -97,7 +102,7 @@ body.ad-banner-visible{padding-bottom:80px}
 .toggle-visited{background:#fff;color:#a9790c;border-color:#f0dfa8}
 .toggle-visited.active{background:#e8c300;color:#3a2c1c;border-color:#b89600}
 .pinned-banner{grid-column:1/-1;background:#875020;color:#fff;font-weight:700;font-size:14px;padding:10px 16px;border-radius:12px;margin-bottom:-4px;display:flex;justify-content:space-between;align-items:center;gap:10px}
-.pinned-banner-close{background:#fff3;border:none;color:#fff;width:24px;height:24px;border-radius:50%;font-size:13px;line-height:1;flex-shrink:0}
+.pinned-banner-close{background:transparent;border:none;color:#fff;width:30px;height:30px;border-radius:50%;font-size:19px;line-height:1;flex-shrink:0;display:flex;align-items:center;justify-content:center}
 .hidden{display:none}#modal,#filterModal,#feedbackModal,#reportModal,#authModal,#areasFilterModal{position:fixed;left:0;right:0;top:var(--app-vv-top,0px);height:var(--app-vv-height,100vh);background:#0008;z-index:2000;display:grid;place-items:center;padding:20px;overflow:auto}#modal{background:#f8f6f5}.dialog{background:#fff;width:min(500px,100%);padding:25px;border-radius:20px;position:relative}.dialog #close{position:absolute;right:10px;top:8px;background:none;color:#555;font-size:28px;padding:5px}.dialog label{display:block;font-weight:700;margin:13px 0}.dialog input,.dialog textarea{display:block;width:100%;margin-top:6px;padding:11px;border:1px solid #e1dcd7;border-radius:9px;font:inherit}.dialog form button{width:100%;margin-top:5px}@media(max-width:600px){.hero h1{font-size:22px}header{padding:12px}.brand b{font-size:14px}header>button{font-size:12px;padding:9px}}
 body.modal-open{overflow:hidden}.primary{background:#875020;color:#fff}.secondary{background:#f2efed;color:#403730;border:1px solid #e1dcd7;cursor:pointer}.dialog{background:#fff;width:min(720px,100%);max-height:94vh;overflow:auto;-webkit-overflow-scrolling:touch;padding:24px;border-radius:22px;position:relative}.dialog #close{position:absolute;right:12px;top:10px;background:none;color:#555;font-size:30px;padding:5px;z-index:2}.modal-head{display:flex;gap:12px;align-items:center;padding-right:45px;margin-bottom:18px}.modal-icon{font-size:34px;background:#f5ebe2;border-radius:12px;padding:7px 10px}.modal-head h2{margin:0;font-size:25px}.modal-head p{margin:4px 0 0;color:#807972;font-size:13px}.form-section{border-top:1px solid #eae6e3;padding:20px 0}.form-section:first-of-type{border-top:0}.form-section h3{margin:0 0 14px;font-size:18px}.grid{display:grid;gap:14px}.grid.two{grid-template-columns:1fr 1fr}.full{grid-column:1/-1}.dialog label{display:block;font-weight:700;font-size:14px}.dialog label em{font-style:normal;font-size:10px;color:#b5473c;margin-left:5px}.dialog input,.dialog textarea,.dialog select{display:block;width:100%;margin-top:7px;padding:12px;border:1px solid #e0dad5;border-radius:10px;font:inherit;background:#fff;color:#221c17}.dialog input:focus,.dialog textarea:focus,.dialog select:focus{outline:2px solid #e4cdb9;border-color:#875020}fieldset{border:1px solid #e6e1dc;border-radius:12px;padding:12px;margin:0}legend{font-weight:700;padding:0 5px;font-size:13px}.checks{display:flex;flex-wrap:wrap;gap:9px 15px}.checks label{font-weight:500;display:flex;align-items:center;gap:6px}.checks input,.status-list input{width:auto;margin:0;accent-color:#875020}.compact-top{margin-top:14px}.status-list{display:grid;gap:8px}.status-list>div{display:grid;grid-template-columns:1fr repeat(3,auto);gap:7px;align-items:center;font-size:12px}.status-list>div>span{font-weight:600}.status-list label{font-weight:500;display:flex;gap:4px;align-items:center}.rental-row{display:grid;grid-template-columns:1fr 110px 40px;gap:8px;margin-bottom:8px}.rental-row input{margin-top:0!important}.rental-row-3{grid-template-columns:1fr 70px 90px 40px}.hours-range-row{grid-template-columns:1fr auto 1fr 40px;align-items:center}.hours-range-row.with-last-entry{grid-template-columns:1fr auto 1fr auto 1fr 40px}.hours-range-row.with-days{display:flex;flex-direction:column;gap:8px;background:#faf8f6;border:1px solid #eee5df;border-radius:10px;padding:10px}.hours-range-row.with-days .hours-row-days{gap:5px 10px}.hours-range-row.with-days .hours-row-days label{font-size:12px;font-weight:500}.hours-range-row.with-days .hours-row-days input{width:auto;margin:0}.hours-range-row.with-days .hours-time-line{display:flex;flex-wrap:wrap;align-items:center;gap:6px}.hours-range-row.with-days .hours-time-line .remove-rental{margin-left:auto}.hours-range-row .hours-last-entry-label{font-size:12px;font-weight:700;white-space:nowrap}.hours-range-row .time-select{display:flex;align-items:center;gap:4px}.hours-range-row select{margin-top:0!important;padding:8px 4px!important}.remove-rental{background:#fff0ef;color:#b5473c;padding:8px;border:1px solid #f0c9c5}.form-actions{display:flex;justify-content:flex-end;gap:10px;border-top:1px solid #eae6e3;padding-top:18px}.submit{min-width:150px}
 .tab-bar{display:flex;gap:6px;overflow-x:auto;padding:4px 0 12px;margin-bottom:6px;border-bottom:1px solid #eae6e3;-webkit-overflow-scrolling:touch;scrollbar-width:none}
@@ -219,4 +224,31 @@ body.ad-banner-visible .scroll-to-top{bottom:90px}
 .rental-list{display:flex;flex-wrap:wrap;gap:8px}
 .rental-list li{list-style:none;background:#faf7f4;color:#714117;border:1px solid #e1d7cf;border-radius:99px;padding:6px 12px;font-size:13px}
 @media(max-width:600px){.detail-toolbar{padding:12px 16px}.detail-action{font-size:12px;padding:8px 10px}.detail-heading-block{padding:16px}.detail-heading-block h2{font-size:21px}.detail-body{padding:16px}}
+
+/* 施設の追加・編集モーダルを横画面でも全画面に対応させる（絞り込み検索と同様の扱い） */
+@media(max-width:900px) and (orientation:landscape){
+  #modal{padding:0}
+  #modal .dialog{width:100%;max-width:100%;height:100%;max-height:100%;border-radius:0;padding:16px 16px 32px;overflow-y:auto}
+  #modal .grid.two{grid-template-columns:1fr}
+  #modal .full{grid-column:auto}
+  #modal .rental-row{grid-template-columns:1fr 85px 38px}
+  #modal .rental-row-3{grid-template-columns:1fr 60px 70px 34px}
+  #modal .hours-range-row{grid-template-columns:1fr auto 1fr 34px;font-size:12px}
+  #modal .hours-range-row.with-last-entry:not(.with-days){display:flex;flex-wrap:wrap;gap:6px 8px}
+  #modal .hours-range-row.with-last-entry:not(.with-days) .remove-rental{margin-left:auto}
+  #modal .status-list>div{grid-template-columns:1fr;gap:4px;text-align:center}
+  #modal .form-actions{position:sticky;bottom:0;background:#fff;padding:12px 0 0}
+  /* 検索欄（テキスト入力・選択欄）以外の文字を中央寄せにする */
+  #modal .modal-head,
+  #modal .form-section h3,
+  #modal .field-title,
+  #modal label,
+  #modal legend,
+  #modal .checks{text-align:center}
+  #modal .modal-head{flex-direction:column}
+  #modal .checks{justify-content:center}
+  #modal input,
+  #modal textarea,
+  #modal select{text-align:left}
+}
 

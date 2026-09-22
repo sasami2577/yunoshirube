@@ -34,13 +34,13 @@
   <button type="button" id="openFilterButton" class="filter-open-button">🔎 絞り込み検索する</button>
   <button type="button" id="openAreasButton" class="areas-open-button">♨️ 各地の温泉地まとめ</button>
   <section class="map-section" id="mapSection">
-    <div class="title"><h2>📍地図で探す</h2><span id="mapCount"></span></div>
+    <div class="title"><h2 id="mapSectionTitle" class="half-fill-heading half-fill-green">📍地図で探す</h2><span id="mapCount"></span></div>
     <div class="map-toolbar"><button type="button" id="showCurrentLocationButton" class="secondary">📍 現在地を表示</button><button type="button" id="mapStyleToggleButton" class="secondary">🗺 通常マップに変更</button></div>
     <div id="mapContainer"></div>
     <div id="mapLegend" class="map-legend"></div>
   </section>
   <div id="listView">
-    <div class="title"><h2>♨️ 温泉・サウナ施設一覧</h2><span id="count" class="hidden"></span></div>
+    <div class="title"><h2 id="listViewTitle" class="half-fill-heading half-fill-yellow">♨️ 温泉・サウナ施設一覧</h2><span id="count" class="hidden"></span></div>
     <div id="migrateBanner" class="hidden migrate-banner">
       <p id="migrateBannerText"></p>
       <button type="button" id="migrateButton" class="secondary">Supabaseに移行する</button>
@@ -58,6 +58,7 @@
       </select>
     </label>
     <div id="cards"></div>
+    <button type="button" id="showMoreButton" class="hidden show-more-button">▽ もっと見る</button>
   </div>
   <section id="detailView" class="hidden" aria-live="polite"></section>
   <section id="areasView" class="hidden" aria-live="polite"></section>
@@ -243,6 +244,7 @@
 <label class="filter-category-card filter-business-type-card" style="background:#3f9142"><input type="checkbox" class="filter-business-type" value="アウトドア施設"><span class="filter-category-card-emoji filter-business-type-emoji">🏕</span><span class="filter-category-card-label filter-business-type-label">アウトドア施設</span></label>
 <label class="filter-category-card filter-business-type-card" style="background:#4fb3d9"><input type="checkbox" class="filter-business-type" value="スポーツジム"><span class="filter-category-card-emoji filter-business-type-emoji">🏃‍♀️</span><span class="filter-category-card-label filter-business-type-label">スポーツジム</span></label>
 <label class="filter-category-card filter-business-type-card" style="background:#e0629c"><input type="checkbox" class="filter-business-type" value="複合施設"><span class="filter-category-card-emoji filter-business-type-emoji">🎡</span><span class="filter-category-card-label filter-business-type-label">複合施設</span></label>
+<label class="filter-category-card filter-business-type-card" style="background:#ffffff;box-shadow:inset 0 0 0 1px #e1dcd7"><input type="checkbox" class="filter-business-type" value="その他"><span class="filter-category-card-emoji filter-business-type-emoji">🏢</span><span class="filter-category-card-label filter-business-type-label">その他の施設</span></label>
 </div>
 </section>
 
@@ -344,7 +346,7 @@
 <option>アウトドア施設</option>
 <option>スポーツジム</option>
 <option>複合施設</option>
-<option>その他</option>
+<option value="その他">🏢 その他の施設</option>
 </select></label>
 <label class="full hidden" id="businessTypeOtherWrap">施設業態（その他の内容）<input id="businessTypeOther" placeholder="例：カプセルホテル"></label>
 
