@@ -55,17 +55,27 @@ body.ad-banner-visible{padding-bottom:80px}
 .area-facility-detail-btn{flex-shrink:0;background:#875020;color:#fff;border:none;padding:10px 16px;border-radius:10px;font-weight:700;font-size:13px;white-space:nowrap}
 @media(max-width:600px){.area-facility-card{flex-direction:column;align-items:stretch}.area-facility-detail-btn{width:100%}}
 .filter-region legend{color:#615a53}
+details.filter-region{border:1px solid #e6e1dc;border-radius:12px;padding:12px;margin:0}
+details.filter-region summary{font-weight:700;padding:0 5px;font-size:13px;color:#615a53;cursor:pointer;list-style:none;display:flex;align-items:center;gap:7px}
+details.filter-region summary::-webkit-details-marker{display:none}
+details.filter-region summary::before{content:"▶";font-size:10px;color:#875020;transition:transform .2s}
+details.filter-region[open] summary::before{transform:rotate(90deg)}
+details.filter-region>.checks{margin-top:10px}
+details.filter-region>.filter-city-slot:not(:empty){margin-top:6px}
+#filterClose{position:absolute;right:12px;top:10px;background:none;border:0;color:#555;font-size:36px;line-height:1;padding:5px;font-weight:400;z-index:2}
 .filter-category-grid{display:grid;grid-template-columns:repeat(3,1fr);row-gap:4px;column-gap:6px}
 .filter-category-card{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border-radius:14px;border:3px solid transparent;cursor:pointer;background:#faf7f4;padding:8px 6px}
 .filter-category-card input{position:absolute;opacity:0;width:0;height:0;margin:0;pointer-events:none}
 .filter-category-card:has(input:checked){border-color:#d64545;box-shadow:0 0 0 2px #d64545 inset;background:#fdecea}
 .filter-business-type-emoji,.filter-business-type-label{color:#2c2622;text-shadow:-1px -1px 0 #fff,1px -1px 0 #fff,-1px 1px 0 #fff,1px 1px 0 #fff,0 0 3px #fff,0 0 3px #fff}
-.filter-business-type-card:has(input:checked){border-color:#2c2622;box-shadow:0 0 0 3px #2c2622 inset}
+.filter-business-type-card:has(input:checked){border-color:#d64545;box-shadow:0 0 0 3px #d64545 inset}
 .filter-category-card-emoji{font-size:28px}
 .filter-category-card-label{font-size:13px;font-weight:700;color:#403730}
 @media(max-width:600px){.filter-category-grid{grid-template-columns:repeat(2,1fr)}}
 .filter-city-group{border-top:1px solid #e5ece8;padding-top:12px;margin-top:12px}
-#filterPriceSlider{accent-color:#875020;margin-top:8px}
+#filterPriceSlider{accent-color:#875020;margin-top:8px;height:22px}
+#filterPriceSlider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:26px;height:26px;border-radius:50%;background:#875020;border:3px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.4);cursor:pointer}
+#filterPriceSlider::-moz-range-thumb{width:26px;height:26px;border-radius:50%;background:#875020;border:3px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.4);cursor:pointer}
 .map-toolbar{margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
 .map-toolbar button{background:#f2efed;color:#403730;border:1px solid #e1dcd7;font-size:13px;padding:8px 14px}
 #mapContainer{height:320px;border-radius:18px;overflow:hidden;border:1px solid #e8e4e0;background:#f2f0ee}

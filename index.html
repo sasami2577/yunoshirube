@@ -141,7 +141,7 @@
 <div class="modal-head"><span class="modal-icon">🔎</span><div><h2 id="filterModalTitle">絞り込み検索</h2><p>条件を選んで絞り込めます。</p></div></div>
 <section class="form-section"><h3>📍 検索エリア</h3>
 <p class="field-title">都道府県（複数選択可）</p>
-<fieldset class="full compact-top filter-region"><legend>北海道・東北エリア</legend><div class="checks">
+<details class="full compact-top filter-region"><summary>北海道・東北エリア</summary><div class="checks">
 <label><input type="checkbox" class="filter-prefecture" value="北海道">北海道</label>
 <label><input type="checkbox" class="filter-prefecture" value="青森県">青森県</label>
 <label><input type="checkbox" class="filter-prefecture" value="岩手県">岩手県</label>
@@ -151,9 +151,9 @@
 <label><input type="checkbox" class="filter-prefecture" value="福島県">福島県</label>
 </div>
 <div class="filter-city-slot"></div>
-</fieldset>
+</details>
 
-<fieldset class="full compact-top filter-region"><legend>関東エリア</legend><div class="checks">
+<details class="full compact-top filter-region"><summary>関東エリア</summary><div class="checks">
 <label><input type="checkbox" class="filter-prefecture" value="茨城県">茨城県</label>
 <label><input type="checkbox" class="filter-prefecture" value="栃木県">栃木県</label>
 <label><input type="checkbox" class="filter-prefecture" value="群馬県">群馬県</label>
@@ -163,18 +163,18 @@
 <label><input type="checkbox" class="filter-prefecture" value="神奈川県">神奈川県</label>
 </div>
 <div class="filter-city-slot"></div>
-</fieldset>
+</details>
 
-<fieldset class="full compact-top filter-region"><legend>北陸エリア</legend><div class="checks">
+<details class="full compact-top filter-region"><summary>北陸エリア</summary><div class="checks">
 <label><input type="checkbox" class="filter-prefecture" value="新潟県">新潟県</label>
 <label><input type="checkbox" class="filter-prefecture" value="富山県">富山県</label>
 <label><input type="checkbox" class="filter-prefecture" value="石川県">石川県</label>
 <label><input type="checkbox" class="filter-prefecture" value="福井県">福井県</label>
 </div>
 <div class="filter-city-slot"></div>
-</fieldset>
+</details>
 
-<fieldset class="full compact-top filter-region"><legend>東海エリア</legend><div class="checks">
+<details class="full compact-top filter-region"><summary>東海エリア</summary><div class="checks">
 <label><input type="checkbox" class="filter-prefecture" value="山梨県">山梨県</label>
 <label><input type="checkbox" class="filter-prefecture" value="長野県">長野県</label>
 <label><input type="checkbox" class="filter-prefecture" value="岐阜県">岐阜県</label>
@@ -183,9 +183,9 @@
 <label><input type="checkbox" class="filter-prefecture" value="三重県">三重県</label>
 </div>
 <div class="filter-city-slot"></div>
-</fieldset>
+</details>
 
-<fieldset class="full compact-top filter-region"><legend>近畿エリア</legend><div class="checks">
+<details class="full compact-top filter-region"><summary>近畿エリア</summary><div class="checks">
 <label><input type="checkbox" class="filter-prefecture" value="滋賀県">滋賀県</label>
 <label><input type="checkbox" class="filter-prefecture" value="京都府">京都府</label>
 <label><input type="checkbox" class="filter-prefecture" value="大阪府">大阪府</label>
@@ -194,9 +194,9 @@
 <label><input type="checkbox" class="filter-prefecture" value="和歌山県">和歌山県</label>
 </div>
 <div class="filter-city-slot"></div>
-</fieldset>
+</details>
 
-<fieldset class="full compact-top filter-region"><legend>中国エリア</legend><div class="checks">
+<details class="full compact-top filter-region"><summary>中国エリア</summary><div class="checks">
 <label><input type="checkbox" class="filter-prefecture" value="鳥取県">鳥取県</label>
 <label><input type="checkbox" class="filter-prefecture" value="島根県">島根県</label>
 <label><input type="checkbox" class="filter-prefecture" value="岡山県">岡山県</label>
@@ -204,18 +204,18 @@
 <label><input type="checkbox" class="filter-prefecture" value="山口県">山口県</label>
 </div>
 <div class="filter-city-slot"></div>
-</fieldset>
+</details>
 
-<fieldset class="full compact-top filter-region"><legend>四国エリア</legend><div class="checks">
+<details class="full compact-top filter-region"><summary>四国エリア</summary><div class="checks">
 <label><input type="checkbox" class="filter-prefecture" value="徳島県">徳島県</label>
 <label><input type="checkbox" class="filter-prefecture" value="香川県">香川県</label>
 <label><input type="checkbox" class="filter-prefecture" value="愛媛県">愛媛県</label>
 <label><input type="checkbox" class="filter-prefecture" value="高知県">高知県</label>
 </div>
 <div class="filter-city-slot"></div>
-</fieldset>
+</details>
 
-<fieldset class="full compact-top filter-region"><legend>九州・沖縄エリア</legend><div class="checks">
+<details class="full compact-top filter-region"><summary>九州・沖縄エリア</summary><div class="checks">
 <label><input type="checkbox" class="filter-prefecture" value="福岡県">福岡県</label>
 <label><input type="checkbox" class="filter-prefecture" value="佐賀県">佐賀県</label>
 <label><input type="checkbox" class="filter-prefecture" value="長崎県">長崎県</label>
@@ -226,7 +226,7 @@
 <label><input type="checkbox" class="filter-prefecture" value="沖縄県">沖縄県</label>
 </div>
 <div class="filter-city-slot"></div>
-</fieldset>
+</details>
 
 <div id="filterCityContainer"></div>
 </section>
@@ -264,6 +264,9 @@
 <label class="filter-category-card"><input type="checkbox" class="filter-category" value="コインランドリー"><span class="filter-category-card-emoji">🧺</span><span class="filter-category-card-label">コインランドリー</span></label>
 <label class="filter-category-card"><input type="checkbox" class="filter-category" value="レンタルスペース"><span class="filter-category-card-emoji">👩🏻‍💻</span><span class="filter-category-card-label">レンタルスペース</span></label>
 </div>
+<div class="checks compact-top">
+<label><input type="checkbox" id="filterOpenNow">✅ 現在 営業中のみ</label>
+</div>
 </section>
 
 <section class="form-section"><h3>💰 料金選択</h3><div class="checks">
@@ -289,7 +292,10 @@
 <label><input type="checkbox" id="filterParkingAll">すべて</label>
 <label><input type="checkbox" class="filter-parking" value="駐車場あり">駐車場あり</label>
 <label><input type="checkbox" class="filter-parking" value="無料駐車場">無料駐車場</label>
+<label><input type="checkbox" class="filter-parking" value="施設利用者無料">施設利用者無料</label>
+<label><input type="checkbox" class="filter-parking" value="サービス券あり">サービス券あり</label>
 <label><input type="checkbox" class="filter-parking" value="大型車駐車場あり">大型車駐車場あり</label>
+<label><input type="checkbox" class="filter-parking" value="車椅子対応駐車スペース">車椅子対応駐車スペース</label>
 </div></section>
 
 <div class="form-actions">

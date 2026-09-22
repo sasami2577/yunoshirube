@@ -3479,6 +3479,12 @@
       if (!allMatch) return false;
     }
 
+    // 現在営業中のみ
+    if (filters.openNow) {
+      const status = getOpenStatus(item);
+      if (!status || status.className !== "status-open") return false;
+    }
+
     // 料金
     if (filters.priceMode === "max") {
       const fee = getMinBathFeeAmount(item);
@@ -3500,8 +3506,14 @@
       const parkingMatchers = {
         "駐車場あり": (i) => i.parking_status === "あり",
         "無料駐車場": (i) => i.parking_fee_type === "無料",
+        "施設利用者無料": (i) =>
+          Array.isArray(i.parking_conditions) && i.parking_conditions.includes("施設利用者無料"),
+        "サービス券あり": (i) =>
+          Array.isArray(i.parking_conditions) && i.parking_conditions.includes("サービス券あり"),
         "大型車駐車場あり": (i) =>
-          Array.isArray(i.parking_accessible) && i.parking_accessible.includes("大型車駐車スペース")
+          Array.isArray(i.parking_accessible) && i.parking_accessible.includes("大型車駐車スペース"),
+        "車椅子対応駐車スペース": (i) =>
+          Array.isArray(i.parking_accessible) && i.parking_accessible.includes("車椅子対応駐車スペース")
       };
       const allMatch = filters.parking.every((key) =>
         parkingMatchers[key] ? parkingMatchers[key](item) : true
@@ -3594,6 +3606,8 @@
       document.querySelectorAll(".filter-category:checked")
     ).map((el) => el.value);
 
+    const openNow = checkedBool("filterOpenNow");
+
     const priceRadio = radioValue("filterPrice");
     let priceMode = "all";
     let priceMax = null;
@@ -3620,6 +3634,7 @@
       cities,
       businessTypes,
       categories,
+      openNow,
       priceMode,
       priceMax,
       kidsOk: checkedBool("filterKidsOk"),
@@ -3632,6 +3647,7 @@
       !filters.prefectures.length &&
       !filters.businessTypes.length &&
       !filters.categories.length &&
+      !filters.openNow &&
       filters.priceMode === "all" &&
       !filters.kidsOk &&
       !filters.kidsMixedBathing &&
@@ -3658,6 +3674,7 @@
     if ($("filterKidsOk")) $("filterKidsOk").checked = false;
     if ($("filterKidsMixedBathing")) $("filterKidsMixedBathing").checked = false;
     if ($("filterKidsAge")) $("filterKidsAge").value = "";
+    if ($("filterOpenNow")) $("filterOpenNow").checked = false;
     document.querySelectorAll(".filter-parking").forEach((el) => (el.checked = false));
     if ($("filterParkingAll")) $("filterParkingAll").checked = false;
   }
