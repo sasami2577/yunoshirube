@@ -73,7 +73,7 @@ body.ad-banner-visible{padding-bottom:80px}
 .map-popup b{display:block;margin:0;font-size:16px;color:#202124;font-weight:600;line-height:1.2}
 .map-popup a{color:#1a73e8;font-weight:500;text-decoration:none}
 .map-popup a:hover{text-decoration:underline}
-.map-popup-place{margin:0;line-height:1.2;color:#70757a;font-size:13px}
+.leaflet-popup-content p.map-popup-place{margin:0!important;line-height:1.2;color:#70757a;font-size:13px}
 .map-popup .status-badge{display:inline-block;margin:0}
 .map-popup-links{display:flex;flex-direction:column;gap:4px;margin-top:5px}
 .leaflet-control-zoom{border:none!important;box-shadow:0 1px 4px 1px rgba(0,0,0,.28)!important;border-radius:2px!important}
