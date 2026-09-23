@@ -7874,8 +7874,8 @@
   // （丸い点＋太字ラベルを点のすぐ下に表示）に統一して強調する
   // ※ 駅（station）はJR/私鉄/新幹線で色・表記を変えたいため、こちらではなく
   // 　OpenStreetMap Overpass経由の専用レイヤー（customizeStationLabels相当）で扱う
-  const BASE_POIS_EXCLUDE_KINDS = ["station", "school", "university", "park", "post_office", "townhall", "aerodrome", "ferry_terminal"];
-  const EMPHASIZED_POI_KINDS = ["school", "university", "park", "post_office", "townhall", "aerodrome", "ferry_terminal"];
+  const BASE_POIS_EXCLUDE_KINDS = ["station", "school", "university", "park", "post_office", "townhall", "aerodrome", "ferry_terminal", "museum", "stadium", "zoo"];
+  const EMPHASIZED_POI_KINDS = ["school", "university", "park", "post_office", "townhall", "aerodrome", "ferry_terminal", "museum", "stadium", "zoo"];
 
   // 丸い点アイコンをその場で生成する（画像ファイルのアップロード不要）
   function ensureDotIcon(mlMap, id, color) {
@@ -7990,6 +7990,7 @@
   const overpassRailFeatures = new Map(); // id -> GeoJSON Feature
   const overpassIntersectionFeatures = new Map(); // id -> GeoJSON Feature
   const overpassStationFeatures = new Map(); // id -> GeoJSON Feature
+  const overpassFacilityFeatures = new Map(); // id -> GeoJSON Feature
 
   // 交差点名バッジ用の角丸アイコンをその場で生成する（画像ファイルのアップロード不要）
   function ensureBadgeIcon(mlMap, id, color) {
@@ -8045,6 +8046,41 @@
     if (!/駅$/.test(label)) label += "駅";
     if (category === "jr" && !/^JR/i.test(label)) label = "JR" + label;
     return label;
+  }
+
+  // Protomapsの基本地図データ（poisレイヤー）には含まれない施設カテゴリをOSMタグから判定する
+  // （道の駅は緑、それ以外は郵便局・学校と同じ紫色で表示する）
+  function classifyExtraFacility(tags) {
+    if (!tags) return null;
+    if (tags.michinoeki) return "roadstation"; // 道の駅
+    if (
+      (tags.amenity === "place_of_worship" && (tags.religion === "buddhist" || tags.religion === "shinto")) ||
+      tags.shop === "mall" ||
+      tags.office === "government" ||
+      tags.amenity === "police" ||
+      tags.amenity === "courthouse" ||
+      tags.amenity === "fire_station" ||
+      tags.amenity === "clinic" ||
+      tags.amenity === "social_facility" ||
+      tags.amenity === "kindergarten" ||
+      tags.amenity === "childcare" ||
+      tags.amenity === "college" ||
+      tags.amenity === "community_centre" ||
+      tags.amenity === "bank" ||
+      tags.amenity === "bus_station" ||
+      tags.amenity === "marketplace" ||
+      tags.amenity === "waste_transfer_station" ||
+      tags.man_made === "water_works" ||
+      tags.man_made === "wastewater_plant" ||
+      tags.leisure === "sports_centre" ||
+      tags.tourism === "aquarium" ||
+      tags.power === "plant" ||
+      tags.power === "substation" ||
+      tags.waterway === "dam"
+    ) {
+      return "facility";
+    }
+    return null;
   }
 
   function railCategoryColor(category) {
@@ -8105,6 +8141,19 @@
     query += `node["railway"~"^(station|halt)$"]["name"](${s},${w},${n},${e});`;
     // 鉄道路線（駅構内の側線・操車場・引込み線等は除外し、本線のみをシンプルな一本線で表示する）
     query += `way["railway"~"^(rail|subway|tram|light_rail|monorail|funicular|narrow_gauge)$"][!"service"](${s},${w},${n},${e});`;
+    if (fetchHospitals) {
+      // 基本地図データに含まれない施設カテゴリ（寺院・神社・道の駅・官公庁・警察・消防・銀行等）を追加取得する
+      query += `node["amenity"="place_of_worship"]["name"](${s},${w},${n},${e});`;
+      query += `node["michinoeki"]["name"](${s},${w},${n},${e});`;
+      query += `node["shop"="mall"]["name"](${s},${w},${n},${e});`;
+      query += `node["office"="government"]["name"](${s},${w},${n},${e});`;
+      query += `node["amenity"~"^(police|courthouse|fire_station|clinic|social_facility|kindergarten|childcare|college|community_centre|bank|bus_station|marketplace|waste_transfer_station)$"]["name"](${s},${w},${n},${e});`;
+      query += `node["man_made"~"^(water_works|wastewater_plant)$"]["name"](${s},${w},${n},${e});`;
+      query += `node["leisure"="sports_centre"]["name"](${s},${w},${n},${e});`;
+      query += `node["tourism"="aquarium"]["name"](${s},${w},${n},${e});`;
+      query += `node["power"~"^(plant|substation)$"]["name"](${s},${w},${n},${e});`;
+      query += `node["waterway"="dam"]["name"](${s},${w},${n},${e});`;
+    }
     query += ");out geom;";
 
     overpassFetchInProgress = true;
@@ -8120,8 +8169,10 @@
       let railChanged = false;
       let intersectionsChanged = false;
       let stationsChanged = false;
+      let facilitiesChanged = false;
 
       (data.elements || []).forEach((el) => {
+        const extraFacilityCategory = el.type === "node" && el.tags?.name ? classifyExtraFacility(el.tags) : null;
         if (el.type === "node" && el.tags?.amenity === "hospital") {
           const id = "h" + el.id;
           if (!overpassHospitalFeatures.has(id)) {
@@ -8162,6 +8213,17 @@
             });
             intersectionsChanged = true;
           }
+        } else if (el.type === "node" && extraFacilityCategory) {
+          const id = "f" + el.id;
+          if (!overpassFacilityFeatures.has(id)) {
+            overpassFacilityFeatures.set(id, {
+              type: "Feature",
+              id,
+              geometry: { type: "Point", coordinates: [el.lon, el.lat] },
+              properties: { category: extraFacilityCategory, name: el.tags.name }
+            });
+            facilitiesChanged = true;
+          }
         } else if (el.type === "way" && el.tags?.railway && el.geometry) {
           const id = "r" + el.id;
           if (!overpassRailFeatures.has(id)) {
@@ -8200,6 +8262,12 @@
           features: Array.from(overpassStationFeatures.values())
         });
       }
+      if (facilitiesChanged && mlMap.getSource("custom_facilities")) {
+        mlMap.getSource("custom_facilities").setData({
+          type: "FeatureCollection",
+          features: Array.from(overpassFacilityFeatures.values())
+        });
+      }
     } catch (err) {
       console.warn("Overpass APIからのデータ取得に失敗しました:", err);
     } finally {
@@ -8214,6 +8282,7 @@
     mlMap.addSource("custom_hospitals", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
     mlMap.addSource("custom_intersections", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
     mlMap.addSource("custom_stations", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+    mlMap.addSource("custom_facilities", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
 
     mlMap.addLayer({
       id: "custom_rail_line",
@@ -8328,6 +8397,30 @@
           "tram", railCategoryColor("tram"),
           railCategoryColor("other")
         ],
+        "text-halo-color": "#ffffff",
+        "text-halo-width": 2
+      }
+    });
+
+    // 基本地図データに含まれない施設（寺院・神社・道の駅・官公庁・警察・消防・銀行等）
+    // ※ 道の駅のみ緑色、それ以外は郵便局・学校と同じ紫色で表示する
+    ensureDotIcon(mlMap, "dot_facility", "#6A5B8F");
+    ensureDotIcon(mlMap, "dot_roadstation", "#2e7d32");
+    mlMap.addLayer({
+      id: "custom_facility_label",
+      type: "symbol",
+      source: "custom_facilities",
+      layout: {
+        "icon-image": ["match", ["get", "category"], "roadstation", "dot_roadstation", "dot_facility"],
+        "icon-size": 0.9,
+        "text-field": ["get", "name"],
+        "text-font": ["Noto Sans Bold"],
+        "text-size": ["interpolate", ["linear"], ["zoom"], 12, 11, 15, 14, 19, 20],
+        "text-offset": [0, 0.6],
+        "text-anchor": "top"
+      },
+      paint: {
+        "text-color": ["match", ["get", "category"], "roadstation", "#2e7d32", "#6A5B8F"],
         "text-halo-color": "#ffffff",
         "text-halo-width": 2
       }
