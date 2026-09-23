@@ -7592,9 +7592,9 @@
     });
 
     $("mapStyleToggleButton")?.addEventListener("click", () => {
-      const order = window.ONSEN_PROTOMAPS_CONFIG?.apiKey ? ["aerial", "osm", "dark"] : ["aerial", "osm"];
+      const order = window.ONSEN_PROTOMAPS_CONFIG?.apiKey ? ["osm", "aerial", "dark"] : ["osm", "aerial"];
       const currentIndex = order.indexOf(currentMapStyle);
-      const nextStyle = order[(currentIndex + 1) % order.length] || "aerial";
+      const nextStyle = order[(currentIndex + 1) % order.length] || "osm";
       applyMapStyle(nextStyle);
     });
 
@@ -7837,7 +7837,7 @@
   let leafletMap = null;
   let leafletMarkerGroup = null;
   let currentTileLayer = null;
-  let currentMapStyle = "aerial";
+  let currentMapStyle = "osm";
 
   const TILE_LAYER_CONFIGS = {
     aerial: {
@@ -7856,6 +7856,18 @@
     }
   };
 
+  function applyProtomapsFlavor(flavor) {
+    const apiKey = window.ONSEN_PROTOMAPS_CONFIG?.apiKey;
+    if (!apiKey || !window.protomapsL) return null;
+    return protomapsL
+      .leafletLayer({
+        url: `https://api.protomaps.com/tiles/v4/{z}/{x}/{y}.mvt?key=${apiKey}`,
+        flavor,
+        lang: "ja"
+      })
+      .addTo(leafletMap);
+  }
+
   function applyMapStyle(style) {
     if (!leafletMap) return;
 
@@ -7865,21 +7877,17 @@
     }
 
     if (style === "dark") {
-      const apiKey = window.ONSEN_PROTOMAPS_CONFIG?.apiKey;
-      if (apiKey && window.protomapsL) {
-        currentTileLayer = protomapsL
-          .leafletLayer({
-            url: `https://api.protomaps.com/tiles/v4/{z}/{x}/{y}.mvt?key=${apiKey}`,
-            flavor: "dark",
-            lang: "ja"
-          })
-          .addTo(leafletMap);
-      } else {
+      currentTileLayer = applyProtomapsFlavor("dark");
+      if (!currentTileLayer) {
         // APIキー未設定の場合は通常マップにフォールバック
         style = "osm";
-        currentTileLayer = L.tileLayer(TILE_LAYER_CONFIGS.osm.url, TILE_LAYER_CONFIGS.osm.options).addTo(leafletMap);
       }
-    } else {
+    } else if (style === "osm") {
+      currentTileLayer = applyProtomapsFlavor("light");
+    }
+
+    if (!currentTileLayer) {
+      // Protomaps未設定時や航空写真スタイルは従来のラスタタイルを使用
       const config = TILE_LAYER_CONFIGS[style] || TILE_LAYER_CONFIGS.aerial;
       currentTileLayer = L.tileLayer(config.url, config.options).addTo(leafletMap);
     }
@@ -7888,12 +7896,13 @@
 
     const toggleButton = $("mapStyleToggleButton");
     if (toggleButton) {
+      const hasProtomaps = !!window.ONSEN_PROTOMAPS_CONFIG?.apiKey;
       const labels = {
-        aerial: "🗺 通常マップに変更",
-        osm: window.ONSEN_PROTOMAPS_CONFIG?.apiKey ? "🌙 ダークマップに変更" : "🗺 航空写真に変更",
-        dark: "🛰 航空写真に変更"
+        osm: "🗺 航空写真に変更",
+        aerial: hasProtomaps ? "🌙 ダークマップに変更" : "🗺 通常マップに変更",
+        dark: "🗺 通常マップに変更"
       };
-      toggleButton.textContent = labels[style] || labels.aerial;
+      toggleButton.textContent = labels[style] || labels.osm;
     }
   }
 
@@ -7919,7 +7928,7 @@
       ).addTo(leafletMap);
       $("mapStyleToggleButton")?.classList.add("hidden");
     } else {
-      applyMapStyle("aerial");
+      applyMapStyle("osm");
     }
 
     leafletMarkerGroup = L.layerGroup().addTo(leafletMap);
