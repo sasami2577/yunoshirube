@@ -8066,13 +8066,17 @@
   }
 
   function overpassBboxKey(bbox) {
-    // 0.05度単位のグリッドでキャッシュキーを作り、同じ範囲を何度も取得しないようにする
-    const round = (v) => Math.floor(v / 0.05) * 0.05;
+    // 0.1度単位のグリッドでキャッシュキーを作り、同じ範囲を何度も取得しないようにする
+    // （細かすぎるとパン操作のたびに通信が発生して重くなるため、少し広めのマス目にしている）
+    const round = (v) => Math.floor(v / 0.1) * 0.1;
     return [round(bbox[1]), round(bbox[0]), round(bbox[3]), round(bbox[2])].join(",");
   }
 
+  let overpassFetchInProgress = false; // 同時に複数のリクエストが飛んで重くなるのを防ぐ
+
   async function fetchOverpassOverlay(mlMap) {
     if (!mlMap || !mlMap.getBounds) return;
+    if (overpassFetchInProgress) return; // 前の取得が終わるまでは新しい取得を始めない
     const zoom = mlMap.getZoom();
     if (zoom < 11) return; // 広域表示時は負荷対策として取得しない
 
@@ -8103,6 +8107,7 @@
     query += `way["railway"~"^(rail|subway|tram|light_rail|monorail|funicular|narrow_gauge)$"][!"service"](${s},${w},${n},${e});`;
     query += ");out geom;";
 
+    overpassFetchInProgress = true;
     try {
       const res = await fetch("https://overpass-api.de/api/interpreter", {
         method: "POST",
@@ -8197,6 +8202,8 @@
       }
     } catch (err) {
       console.warn("Overpass APIからのデータ取得に失敗しました:", err);
+    } finally {
+      overpassFetchInProgress = false;
     }
   }
 
@@ -8301,13 +8308,15 @@
       id: "custom_station_label",
       type: "symbol",
       source: "custom_stations",
-      minzoom: 11,
       layout: {
         "text-field": ["get", "name"],
         "text-font": ["Noto Sans Bold"],
         "text-size": ["interpolate", ["linear"], ["zoom"], 11, 11, 15, 15, 19, 22],
         "text-offset": [0, 0.6],
-        "text-anchor": "top"
+        "text-anchor": "top",
+        // 周辺の他のラベルと重なっても駅名は優先して表示する
+        "text-allow-overlap": true,
+        "text-ignore-placement": true
       },
       paint: {
         "text-color": [
@@ -8328,7 +8337,7 @@
     let overpassTimer = null;
     mlMap.on("moveend", () => {
       clearTimeout(overpassTimer);
-      overpassTimer = setTimeout(() => fetchOverpassOverlay(mlMap), 600);
+      overpassTimer = setTimeout(() => fetchOverpassOverlay(mlMap), 1000);
     });
   }
 
