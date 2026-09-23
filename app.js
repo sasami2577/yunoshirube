@@ -8125,6 +8125,16 @@
       });
 
       const name = escapeHtml(item.name || "名称未設定");
+
+      // 拡大表示時のみ、ピンの横に施設名の常時ラベルを表示（広域表示ではラベルが密集しすぎるため非表示）
+      if (currentZoom >= AREA_CLUSTER_ZOOM_THRESHOLD) {
+        marker.bindTooltip(name, {
+          permanent: true,
+          direction: "right",
+          offset: [9, -30],
+          className: "map-pin-label"
+        });
+      }
       const place = escapeHtml([item.prefecture, item.area].filter(Boolean).join(" "));
       const status = getOpenStatus(item);
       const mapsUrl = item.google_maps_url
