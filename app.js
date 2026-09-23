@@ -7870,34 +7870,81 @@
     ]);
   }
 
-  // 駅・学校・公園・公共施設等、主要施設のラベルを太字＆大きめにして強調する
-  // （※Protomapsの地図データには「病院」単体の地点情報が含まれていないため、病院ラベルの強調は対応できません）
+  // 駅・学校・公園・公共施設等、主要施設のラベルを「病院ラベル」と同じ見た目
+  // （丸い点＋太字ラベルを点のすぐ下に表示）に統一して強調する
   const EMPHASIZED_POI_KINDS = ["station", "school", "university", "park", "post_office", "townhall"];
+
+  // 丸い点アイコンをその場で生成する（画像ファイルのアップロード不要）
+  function ensureDotIcon(mlMap, id, color) {
+    if (mlMap.hasImage(id)) return;
+    const size = 16;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, size / 2 - 1.5, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = "#ffffff";
+    ctx.stroke();
+    mlMap.addImage(id, ctx.getImageData(0, 0, size, size));
+  }
 
   function customizeMajorPoiLabels(mlMap) {
     if (!mlMap || !mlMap.getLayer || !mlMap.getLayer("pois")) return;
 
-    // 元のズーム連動サイズ（zoom17:10px, zoom19:16px）はそのまま維持しつつ、
-    // 対象カテゴリだけ文字は大きく（2.5倍）・アイコンは控えめに（1.1倍）・太字フォントにする
-    mlMap.setLayoutProperty("pois", "text-size", [
-      "*",
-      ["interpolate", ["linear"], ["zoom"], 17, 10, 19, 16],
-      ["match", ["get", "kind"], EMPHASIZED_POI_KINDS, 2.5, 1]
+    const poisLayerDef = mlMap.getStyle().layers.find((l) => l.id === "pois");
+    if (!poisLayerDef) return;
+
+    // 元のpoisレイヤーからは対象カテゴリを除外し、二重に表示されないようにする
+    const originalFilter = mlMap.getFilter("pois");
+    mlMap.setFilter("pois", [
+      "all",
+      originalFilter,
+      ["!", ["in", ["get", "kind"], ["literal", EMPHASIZED_POI_KINDS]]]
     ]);
-    mlMap.setLayoutProperty("pois", "text-font", [
-      "match",
-      ["get", "kind"],
-      EMPHASIZED_POI_KINDS,
-      ["literal", ["Noto Sans Bold"]],
-      ["literal", ["Noto Sans Regular"]]
-    ]);
-    mlMap.setLayoutProperty("pois", "icon-size", [
-      "match", ["get", "kind"], EMPHASIZED_POI_KINDS, 1.1, 1
-    ]);
-    // 文字が大きくなった分、白フチ（ハロー）も少し太くして視認性を保つ
-    mlMap.setPaintProperty("pois", "text-halo-width", [
-      "match", ["get", "kind"], EMPHASIZED_POI_KINDS, 2, 1
-    ]);
+
+    if (mlMap.getLayer("custom_major_poi_label")) return; // 二重登録防止
+
+    ensureDotIcon(mlMap, "dot_station", "#315BCF");
+    ensureDotIcon(mlMap, "dot_park", "#20834D");
+    ensureDotIcon(mlMap, "dot_facility", "#6A5B8F");
+
+    mlMap.addLayer({
+      id: "custom_major_poi_label",
+      type: "symbol",
+      source: poisLayerDef.source,
+      "source-layer": poisLayerDef["source-layer"],
+      minzoom: 11, // 元のpoisレイヤーより広い範囲（少しズームアウトした状態）から表示する
+      filter: ["in", ["get", "kind"], ["literal", EMPHASIZED_POI_KINDS]],
+      layout: {
+        "icon-image": [
+          "match", ["get", "kind"],
+          "station", "dot_station",
+          "park", "dot_park",
+          "dot_facility"
+        ],
+        "icon-size": 0.9,
+        "text-field": poisLayerDef.layout["text-field"],
+        "text-font": ["Noto Sans Bold"],
+        "text-size": ["interpolate", ["linear"], ["zoom"], 11, 11, 15, 15, 19, 20],
+        "text-offset": [0, 0.6],
+        "text-anchor": "top",
+        "text-max-width": 8
+      },
+      paint: {
+        "text-color": [
+          "match", ["get", "kind"],
+          "station", "#315BCF",
+          "park", "#20834D",
+          "#6A5B8F"
+        ],
+        "text-halo-color": "#ffffff",
+        "text-halo-width": 2
+      }
+    });
   }
 
   // 国道・県道・高速道路・主要幹線道路の色をカスタマイズする（config.jsのONSEN_ROAD_COLOR_CONFIGで色指定）
@@ -8009,7 +8056,7 @@
   async function fetchOverpassOverlay(mlMap) {
     if (!mlMap || !mlMap.getBounds) return;
     const zoom = mlMap.getZoom();
-    if (zoom < 12) return; // 広域表示時は負荷対策として取得しない
+    if (zoom < 11) return; // 広域表示時は負荷対策として取得しない
 
     const b = mlMap.getBounds();
     const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
@@ -8019,8 +8066,8 @@
     // 　その範囲が永久に再取得されなくなる（＝鉄道が表示されないまま）不具合を防ぐため、
     // 　実際にデータを取得できた場合のみ下で登録する。
 
-    const fetchHospitals = zoom >= 14;
-    const fetchIntersections = zoom >= 15;
+    const fetchHospitals = zoom >= 12;
+    const fetchIntersections = zoom >= 13;
     const s = bbox[1], w = bbox[0], n = bbox[3], e = bbox[2];
 
     let query = "[out:json][timeout:25];(";
@@ -8156,7 +8203,7 @@
         "text-field": ["get", "name"],
         "text-font": ["Noto Sans Bold"],
         "text-size": ["interpolate", ["linear"], ["zoom"], 13, 13, 19, 26],
-        "text-offset": [0, 1.2],
+        "text-offset": [0, 0.6],
         "text-anchor": "top"
       },
       paint: {
