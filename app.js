@@ -7856,14 +7856,62 @@
     }
   };
 
+  // 道路番号バッジ（roads_shieldsレイヤー）を、国道のみ・おにぎり型の見た目に差し替える
+  function customizeRoadShields(mlMap) {
+    if (!mlMap || !mlMap.getLayer || !mlMap.getLayer("roads_shields")) return;
+
+    const applyShieldStyle = () => {
+      if (!mlMap.hasImage("jp-national-shield")) return;
+      mlMap.setFilter("roads_shields", [
+        "all",
+        ["in", ["get", "kind"], ["literal", ["highway", "major_road"]]],
+        ["has", "shield_text"],
+        ["<=", ["length", ["get", "shield_text"]], 5],
+        // 国道（JP:national）のみ表示し、県道など重複する路線番号は非表示にする
+        ["==", ["get", "network"], "JP:national"]
+      ]);
+      mlMap.setLayoutProperty("roads_shields", "icon-image", "jp-national-shield");
+      mlMap.setLayoutProperty("roads_shields", "icon-text-fit", "both");
+      mlMap.setLayoutProperty("roads_shields", "icon-text-fit-padding", [2, 3, 2, 3]);
+      mlMap.setPaintProperty("roads_shields", "text-color", "#ffffff");
+    };
+
+    if (mlMap.hasImage("jp-national-shield")) {
+      applyShieldStyle();
+      return;
+    }
+
+    mlMap.loadImage("map-assets/jp-national-shield.png", (error, image) => {
+      if (error || !image || mlMap.hasImage("jp-national-shield")) {
+        if (!error) applyShieldStyle();
+        return;
+      }
+      mlMap.addImage("jp-national-shield", image, {
+        stretchX: [[20, 44]],
+        stretchY: [[14, 34]],
+        content: [16, 8, 48, 36]
+      });
+      applyShieldStyle();
+    });
+  }
+
   function applyProtomapsFlavor(flavor) {
     const apiKey = window.ONSEN_PROTOMAPS_CONFIG?.apiKey;
     if (!apiKey || !window.L?.maplibreGL) return null;
     // MapLibre GL（ベクター描画）をLeafletのレイヤーとして重ねることで、
     // 駅・公園・ランドマークなどのPOIラベルを含む本格的なスタイルを表示する
-    return L.maplibreGL({
+    const glLayer = L.maplibreGL({
       style: `https://api.protomaps.com/styles/v5/${flavor}/ja.json?key=${apiKey}`
     }).addTo(leafletMap);
+
+    const mlMap = glLayer.getMaplibreMap?.();
+    if (mlMap) {
+      mlMap.on("load", () => customizeRoadShields(mlMap));
+      // スタイルが既に読み込み済みの場合（キャッシュ等）にも適用されるよう保険をかける
+      if (mlMap.isStyleLoaded && mlMap.isStyleLoaded()) customizeRoadShields(mlMap);
+    }
+
+    return glLayer;
   }
 
   function applyMapStyle(style) {
