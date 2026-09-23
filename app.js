@@ -7870,6 +7870,272 @@
     ]);
   }
 
+  // 駅・学校・公園・公共施設等、主要施設のラベルを太字＆大きめにして強調する
+  // （※Protomapsの地図データには「病院」単体の地点情報が含まれていないため、病院ラベルの強調は対応できません）
+  const EMPHASIZED_POI_KINDS = ["station", "school", "university", "park", "post_office", "townhall"];
+
+  function customizeMajorPoiLabels(mlMap) {
+    if (!mlMap || !mlMap.getLayer || !mlMap.getLayer("pois")) return;
+
+    // 元のズーム連動サイズ（zoom17:10px, zoom19:16px）はそのまま維持しつつ、
+    // 対象カテゴリだけ1.4倍のサイズ・太字フォントにする
+    mlMap.setLayoutProperty("pois", "text-size", [
+      "*",
+      ["interpolate", ["linear"], ["zoom"], 17, 10, 19, 16],
+      ["match", ["get", "kind"], EMPHASIZED_POI_KINDS, 1.4, 1]
+    ]);
+    mlMap.setLayoutProperty("pois", "text-font", [
+      "match",
+      ["get", "kind"],
+      EMPHASIZED_POI_KINDS,
+      ["literal", ["Noto Sans Bold"]],
+      ["literal", ["Noto Sans Regular"]]
+    ]);
+    mlMap.setLayoutProperty("pois", "icon-size", [
+      "match", ["get", "kind"], EMPHASIZED_POI_KINDS, 1.3, 1
+    ]);
+  }
+
+  // 国道・県道・高速道路・主要幹線道路の色をカスタマイズする（config.jsのONSEN_ROAD_COLOR_CONFIGで色指定）
+  const ROAD_LINE_WIDTH = ["interpolate", ["exponential", 1.6], ["zoom"], 6, 0, 12, 1.6, 15, 3, 18, 13];
+
+  function customizeRoadColors(mlMap) {
+    if (!mlMap || !mlMap.getLayer) return;
+    const cfg = window.ONSEN_ROAD_COLOR_CONFIG || {};
+
+    // 高速・有料道路（Protomaps上は kind:"highway" として単独レイヤーになっている）
+    if (cfg.expressway && mlMap.getLayer("roads_highway")) {
+      mlMap.setPaintProperty("roads_highway", "line-color", cfg.expressway);
+    }
+
+    // Protomapsの道路データは「国道」「県道」「その他幹線道路」を色分けしていないため、
+    // 路線番号（network）や種別（kind）で絞り込んだ専用レイヤーを上に重ねて色を変える
+    const addOverlay = (id, filter, color) => {
+      if (!color || mlMap.getLayer(id) || !mlMap.getLayer("roads_major")) return;
+      mlMap.addLayer({
+        id,
+        type: "line",
+        source: "protomaps",
+        "source-layer": "roads",
+        filter,
+        paint: { "line-color": color, "line-width": ROAD_LINE_WIDTH }
+      }, "roads_highway_casing_early");
+    };
+
+    // 国道（network = JP:national）
+    addOverlay("roads_major_national_over", [
+      "all",
+      ["!has", "is_tunnel"], ["!has", "is_bridge"],
+      ["==", "kind", "major_road"],
+      ["==", ["get", "network"], "JP:national"]
+    ], cfg.national);
+
+    // 県道（network に JP:prefectural を含む）
+    addOverlay("roads_major_prefectural_over", [
+      "all",
+      ["!has", "is_tunnel"], ["!has", "is_bridge"],
+      ["==", "kind", "major_road"],
+      ["has", "network"],
+      ["in", "JP:prefectural", ["get", "network"]]
+    ], cfg.prefectural);
+
+    // 主要幹線道路（国道・県道以外のmajor_road。番号のない幹線道路など）
+    addOverlay("roads_major_other_over", [
+      "all",
+      ["!has", "is_tunnel"], ["!has", "is_bridge"],
+      ["==", "kind", "major_road"],
+      ["any",
+        ["!has", "network"],
+        ["all",
+          ["!=", ["get", "network"], "JP:national"],
+          ["!", ["in", "JP:prefectural", ["get", "network"]]]
+        ]
+      ]
+    ], cfg.majorOther);
+  }
+
+  // ------------------------------------------------------------------
+  // 病院ポイント・鉄道路線種別のカスタムオーバーレイ
+  // （Protomapsの基本地図データには病院の地点情報や、JR/私鉄/地下鉄等の鉄道種別の区別が無いため、
+  // 　OpenStreetMapのOverpass APIから表示範囲内のデータを都度取得して重ねて表示する）
+  // ------------------------------------------------------------------
+  const overpassFetchedCells = new Set();
+  const overpassHospitalFeatures = new Map(); // id -> GeoJSON Feature
+  const overpassRailFeatures = new Map(); // id -> GeoJSON Feature
+
+  // 鉄道の種別（JR線／新幹線／私鉄／地下鉄／路面電車／その他）をOSMタグから推定する
+  function classifyRailCategory(tags) {
+    tags = tags || {};
+    const operator = tags.operator || "";
+    const railway = tags.railway || "";
+    if (tags.highspeed === "yes" || /新幹線/.test(operator)) return "shinkansen";
+    if (railway === "subway") return "subway";
+    if (railway === "tram" || railway === "light_rail") return "tram";
+    if (railway === "monorail" || railway === "funicular" || railway === "narrow_gauge") return "other";
+    if (/(JR|Ｊ Ｒ|Ｊ・Ｒ)/i.test(operator) || /東日本旅客鉄道|西日本旅客鉄道|東海旅客鉄道|九州旅客鉄道|北海道旅客鉄道|四国旅客鉄道|日本貨物鉄道/.test(operator)) return "jr";
+    return "private";
+  }
+
+  function railCategoryColor(category) {
+    const cfg = window.ONSEN_ROAD_COLOR_CONFIG || {};
+    const defaults = {
+      jr: "#4fc3f7",
+      shinkansen: "#1e88e5",
+      private: "#7e57c2",
+      subway: "#795548",
+      tram: "#9ccc65",
+      other: "#283593"
+    };
+    const cfgKeyMap = {
+      jr: "railJr", shinkansen: "railShinkansen", private: "railPrivate",
+      subway: "railSubway", tram: "railTram", other: "railOther"
+    };
+    return cfg[cfgKeyMap[category]] || defaults[category];
+  }
+
+  function overpassBboxKey(bbox) {
+    // 0.05度単位のグリッドでキャッシュキーを作り、同じ範囲を何度も取得しないようにする
+    const round = (v) => Math.floor(v / 0.05) * 0.05;
+    return [round(bbox[1]), round(bbox[0]), round(bbox[3]), round(bbox[2])].join(",");
+  }
+
+  async function fetchOverpassOverlay(mlMap) {
+    if (!mlMap || !mlMap.getBounds) return;
+    const zoom = mlMap.getZoom();
+    if (zoom < 12) return; // 広域表示時は負荷対策として取得しない
+
+    const b = mlMap.getBounds();
+    const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
+    const cellKey = overpassBboxKey(bbox);
+    if (overpassFetchedCells.has(cellKey)) return;
+    overpassFetchedCells.add(cellKey);
+
+    const fetchHospitals = zoom >= 14;
+    const s = bbox[1], w = bbox[0], n = bbox[3], e = bbox[2];
+
+    let query = "[out:json][timeout:20];(";
+    if (fetchHospitals) {
+      query += `node["amenity"="hospital"](${s},${w},${n},${e});`;
+    }
+    query += `way["railway"~"^(rail|subway|tram|light_rail|monorail|funicular|narrow_gauge)$"](${s},${w},${n},${e});`;
+    query += ");out geom;";
+
+    try {
+      const res = await fetch("https://overpass-api.de/api/interpreter", {
+        method: "POST",
+        body: "data=" + encodeURIComponent(query)
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      let hospitalsChanged = false;
+      let railChanged = false;
+
+      (data.elements || []).forEach((el) => {
+        if (el.type === "node" && el.tags?.amenity === "hospital") {
+          const id = "h" + el.id;
+          if (!overpassHospitalFeatures.has(id)) {
+            overpassHospitalFeatures.set(id, {
+              type: "Feature",
+              id,
+              geometry: { type: "Point", coordinates: [el.lon, el.lat] },
+              properties: { name: el.tags.name || "病院" }
+            });
+            hospitalsChanged = true;
+          }
+        } else if (el.type === "way" && el.tags?.railway && el.geometry) {
+          const id = "r" + el.id;
+          if (!overpassRailFeatures.has(id)) {
+            overpassRailFeatures.set(id, {
+              type: "Feature",
+              id,
+              geometry: { type: "LineString", coordinates: el.geometry.map((pt) => [pt.lon, pt.lat]) },
+              properties: { category: classifyRailCategory(el.tags) }
+            });
+            railChanged = true;
+          }
+        }
+      });
+
+      if (hospitalsChanged && mlMap.getSource("custom_hospitals")) {
+        mlMap.getSource("custom_hospitals").setData({
+          type: "FeatureCollection",
+          features: Array.from(overpassHospitalFeatures.values())
+        });
+      }
+      if (railChanged && mlMap.getSource("custom_rail")) {
+        mlMap.getSource("custom_rail").setData({
+          type: "FeatureCollection",
+          features: Array.from(overpassRailFeatures.values())
+        });
+      }
+    } catch (err) {
+      console.warn("Overpass APIからのデータ取得に失敗しました:", err);
+    }
+  }
+
+  function setupOverpassOverlay(mlMap) {
+    if (!mlMap || !mlMap.addSource || mlMap.getSource("custom_rail")) return; // 二重登録防止
+
+    mlMap.addSource("custom_rail", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+    mlMap.addSource("custom_hospitals", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+
+    mlMap.addLayer({
+      id: "custom_rail_line",
+      type: "line",
+      source: "custom_rail",
+      paint: {
+        "line-color": [
+          "match", ["get", "category"],
+          "jr", railCategoryColor("jr"),
+          "shinkansen", railCategoryColor("shinkansen"),
+          "private", railCategoryColor("private"),
+          "subway", railCategoryColor("subway"),
+          "tram", railCategoryColor("tram"),
+          railCategoryColor("other")
+        ],
+        "line-width": ["interpolate", ["linear"], ["zoom"], 10, 1, 14, 2, 18, 4]
+      }
+    });
+
+    mlMap.addLayer({
+      id: "custom_hospital_point",
+      type: "circle",
+      source: "custom_hospitals",
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 12, 3, 18, 9],
+        "circle-color": "#e53935",
+        "circle-stroke-color": "#ffffff",
+        "circle-stroke-width": 1.5
+      }
+    });
+
+    // 病院名ラベル（強調表示：太字）
+    mlMap.addLayer({
+      id: "custom_hospital_label",
+      type: "symbol",
+      source: "custom_hospitals",
+      layout: {
+        "text-field": ["get", "name"],
+        "text-font": ["Noto Sans Bold"],
+        "text-size": ["interpolate", ["linear"], ["zoom"], 13, 11, 19, 22],
+        "text-offset": [0, 1.2],
+        "text-anchor": "top"
+      },
+      paint: {
+        "text-color": "#c62828",
+        "text-halo-color": "#ffffff",
+        "text-halo-width": 1.5
+      }
+    });
+
+    fetchOverpassOverlay(mlMap);
+    let overpassTimer = null;
+    mlMap.on("moveend", () => {
+      clearTimeout(overpassTimer);
+      overpassTimer = setTimeout(() => fetchOverpassOverlay(mlMap), 600);
+    });
+  }
+
   function applyProtomapsFlavor(flavor) {
     const apiKey = window.ONSEN_PROTOMAPS_CONFIG?.apiKey;
     if (!apiKey || !window.L?.maplibreGL) return null;
@@ -7879,11 +8145,18 @@
       style: `https://api.protomaps.com/styles/v5/${flavor}/ja.json?key=${apiKey}`
     }).addTo(leafletMap);
 
+    const applyCustomizations = (mlMap) => {
+      customizeRoadShields(mlMap);
+      customizeMajorPoiLabels(mlMap);
+      customizeRoadColors(mlMap);
+      setupOverpassOverlay(mlMap);
+    };
+
     const mlMap = glLayer.getMaplibreMap?.();
     if (mlMap) {
-      mlMap.on("load", () => customizeRoadShields(mlMap));
+      mlMap.on("load", () => applyCustomizations(mlMap));
       // スタイルが既に読み込み済みの場合（キャッシュ等）にも適用されるよう保険をかける
-      if (mlMap.isStyleLoaded && mlMap.isStyleLoaded()) customizeRoadShields(mlMap);
+      if (mlMap.isStyleLoaded && mlMap.isStyleLoaded()) applyCustomizations(mlMap);
     }
 
     return glLayer;
