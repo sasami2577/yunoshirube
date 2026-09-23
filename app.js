@@ -4502,6 +4502,18 @@
 
           ${detailSubhead("📍 住所")}
           <p class="detail-note">${item.address ? escapeHtml(item.address) : "情報がありません。"}</p>
+          ${
+            item.lat != null && item.lng != null
+              ? `
+                <div class="detail-mini-map">
+                  <iframe src="https://www.google.com/maps?q=${encodeURIComponent(`${item.lat},${item.lng}`)}&z=16&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="${escapeHtml(item.name || "地図")}"></iframe>
+                  <a class="detail-mini-map-overlay" href="https://www.google.com/maps?q=${encodeURIComponent(`${item.lat},${item.lng}`)}" target="_blank" rel="noopener" aria-label="地図を全画面で開く">
+                    <span class="detail-mini-map-hint">🗺 タップで全画面の地図を開く</span>
+                  </a>
+                </div>
+              `
+              : ""
+          }
 
           ${detailSubhead("🚶‍♀️ アクセス方法")}
           ${
@@ -5777,6 +5789,8 @@
     const detailView = $("detailView");
     if (!detailView) return;
 
+    if (mapFullscreenActive) setMapFullscreen(false);
+
     listView?.classList.add("hidden");
     $("mapSection")?.classList.add("hidden");
     $("siteHeader")?.classList.add("hidden");
@@ -5976,6 +5990,8 @@
     const listView = $("listView");
     const areasView = $("areasView");
     if (!areasView) return;
+
+    if (mapFullscreenActive) setMapFullscreen(false);
 
     listView?.classList.add("hidden");
     $("mapSection")?.classList.add("hidden");
@@ -6286,6 +6302,8 @@
     const listView = $("listView");
     const myPageView = $("myPageListView");
     if (!myPageView) return;
+
+    if (mapFullscreenActive) setMapFullscreen(false);
 
     listView?.classList.add("hidden");
     $("mapSection")?.classList.add("hidden");
