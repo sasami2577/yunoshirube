@@ -7878,11 +7878,11 @@
     if (!mlMap || !mlMap.getLayer || !mlMap.getLayer("pois")) return;
 
     // 元のズーム連動サイズ（zoom17:10px, zoom19:16px）はそのまま維持しつつ、
-    // 対象カテゴリだけ1.4倍のサイズ・太字フォントにする
+    // 対象カテゴリだけ2倍のサイズ・太字フォントにする
     mlMap.setLayoutProperty("pois", "text-size", [
       "*",
       ["interpolate", ["linear"], ["zoom"], 17, 10, 19, 16],
-      ["match", ["get", "kind"], EMPHASIZED_POI_KINDS, 1.4, 1]
+      ["match", ["get", "kind"], EMPHASIZED_POI_KINDS, 2, 1]
     ]);
     mlMap.setLayoutProperty("pois", "text-font", [
       "match",
@@ -7892,7 +7892,11 @@
       ["literal", ["Noto Sans Regular"]]
     ]);
     mlMap.setLayoutProperty("pois", "icon-size", [
-      "match", ["get", "kind"], EMPHASIZED_POI_KINDS, 1.3, 1
+      "match", ["get", "kind"], EMPHASIZED_POI_KINDS, 1.8, 1
+    ]);
+    // 文字が大きくなった分、白フチ（ハロー）も少し太くして視認性を保つ
+    mlMap.setPaintProperty("pois", "text-halo-width", [
+      "match", ["get", "kind"], EMPHASIZED_POI_KINDS, 2, 1
     ]);
   }
 
@@ -7955,13 +7959,40 @@
   }
 
   // ------------------------------------------------------------------
-  // 病院ポイント・鉄道路線種別のカスタムオーバーレイ
-  // （Protomapsの基本地図データには病院の地点情報や、JR/私鉄/地下鉄等の鉄道種別の区別が無いため、
-  // 　OpenStreetMapのOverpass APIから表示範囲内のデータを都度取得して重ねて表示する）
+  // 病院ポイント・鉄道路線種別・交差点名のカスタムオーバーレイ
+  // （Protomapsの基本地図データには病院の地点情報、JR/私鉄/地下鉄等の鉄道種別の区別、
+  // 　交差点名の表示が無いため、OpenStreetMapのOverpass APIから表示範囲内のデータを
+  // 　都度取得して重ねて表示する）
   // ------------------------------------------------------------------
   const overpassFetchedCells = new Set();
   const overpassHospitalFeatures = new Map(); // id -> GeoJSON Feature
   const overpassRailFeatures = new Map(); // id -> GeoJSON Feature
+  const overpassIntersectionFeatures = new Map(); // id -> GeoJSON Feature
+
+  // 交差点名バッジ用の角丸アイコンをその場で生成する（画像ファイルのアップロード不要）
+  function ensureBadgeIcon(mlMap, id, color) {
+    if (mlMap.hasImage(id)) return;
+    const w = 32, h = 20, r = 6;
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(r, 0);
+    ctx.arcTo(w, 0, w, h, r);
+    ctx.arcTo(w, h, 0, h, r);
+    ctx.arcTo(0, h, 0, 0, r);
+    ctx.arcTo(0, 0, w, 0, r);
+    ctx.closePath();
+    ctx.fill();
+    const imgData = ctx.getImageData(0, 0, w, h);
+    mlMap.addImage(id, imgData, {
+      stretchX: [[r, w - r]],
+      stretchY: [[r, h - r]],
+      content: [r, r, w - r, h - r]
+    });
+  }
 
   // 鉄道の種別（JR線／新幹線／私鉄／地下鉄／路面電車／その他）をOSMタグから推定する
   function classifyRailCategory(tags) {
@@ -8011,11 +8042,16 @@
     overpassFetchedCells.add(cellKey);
 
     const fetchHospitals = zoom >= 14;
+    const fetchIntersections = zoom >= 15;
     const s = bbox[1], w = bbox[0], n = bbox[3], e = bbox[2];
 
-    let query = "[out:json][timeout:20];(";
+    let query = "[out:json][timeout:25];(";
     if (fetchHospitals) {
       query += `node["amenity"="hospital"](${s},${w},${n},${e});`;
+    }
+    if (fetchIntersections) {
+      query += `node["name"]["highway"~"^(traffic_signals|motorway_junction)$"](${s},${w},${n},${e});`;
+      query += `node["name"]["junction"="yes"](${s},${w},${n},${e});`;
     }
     query += `way["railway"~"^(rail|subway|tram|light_rail|monorail|funicular|narrow_gauge)$"](${s},${w},${n},${e});`;
     query += ");out geom;";
@@ -8029,6 +8065,7 @@
       const data = await res.json();
       let hospitalsChanged = false;
       let railChanged = false;
+      let intersectionsChanged = false;
 
       (data.elements || []).forEach((el) => {
         if (el.type === "node" && el.tags?.amenity === "hospital") {
@@ -8041,6 +8078,21 @@
               properties: { name: el.tags.name || "病院" }
             });
             hospitalsChanged = true;
+          }
+        } else if (
+          el.type === "node" &&
+          el.tags?.name &&
+          (el.tags.highway === "traffic_signals" || el.tags.highway === "motorway_junction" || el.tags.junction === "yes")
+        ) {
+          const id = "i" + el.id;
+          if (!overpassIntersectionFeatures.has(id)) {
+            overpassIntersectionFeatures.set(id, {
+              type: "Feature",
+              id,
+              geometry: { type: "Point", coordinates: [el.lon, el.lat] },
+              properties: { name: el.tags.name }
+            });
+            intersectionsChanged = true;
           }
         } else if (el.type === "way" && el.tags?.railway && el.geometry) {
           const id = "r" + el.id;
@@ -8068,6 +8120,12 @@
           features: Array.from(overpassRailFeatures.values())
         });
       }
+      if (intersectionsChanged && mlMap.getSource("custom_intersections")) {
+        mlMap.getSource("custom_intersections").setData({
+          type: "FeatureCollection",
+          features: Array.from(overpassIntersectionFeatures.values())
+        });
+      }
     } catch (err) {
       console.warn("Overpass APIからのデータ取得に失敗しました:", err);
     }
@@ -8078,6 +8136,7 @@
 
     mlMap.addSource("custom_rail", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
     mlMap.addSource("custom_hospitals", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+    mlMap.addSource("custom_intersections", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
 
     mlMap.addLayer({
       id: "custom_rail_line",
@@ -8117,7 +8176,7 @@
       layout: {
         "text-field": ["get", "name"],
         "text-font": ["Noto Sans Bold"],
-        "text-size": ["interpolate", ["linear"], ["zoom"], 13, 11, 19, 22],
+        "text-size": ["interpolate", ["linear"], ["zoom"], 13, 13, 19, 26],
         "text-offset": [0, 1.2],
         "text-anchor": "top"
       },
@@ -8125,6 +8184,25 @@
         "text-color": "#c62828",
         "text-halo-color": "#ffffff",
         "text-halo-width": 1.5
+      }
+    });
+
+    // 交差点名バッジ（青い角丸ラベル）
+    ensureBadgeIcon(mlMap, "intersection_badge", "#3f6fad");
+    mlMap.addLayer({
+      id: "custom_intersection_label",
+      type: "symbol",
+      source: "custom_intersections",
+      layout: {
+        "icon-image": "intersection_badge",
+        "icon-text-fit": "both",
+        "icon-text-fit-padding": [4, 8, 4, 8],
+        "text-field": ["get", "name"],
+        "text-font": ["Noto Sans Bold"],
+        "text-size": ["interpolate", ["linear"], ["zoom"], 15, 11, 19, 15]
+      },
+      paint: {
+        "text-color": "#ffffff"
       }
     });
 
