@@ -8102,19 +8102,45 @@
   }
 
   function overpassBboxKey(bbox) {
-    // 0.1度単位のグリッドでキャッシュキーを作り、同じ範囲を何度も取得しないようにする
+    // 0.15度単位のグリッドでキャッシュキーを作り、同じ範囲を何度も取得しないようにする
     // （細かすぎるとパン操作のたびに通信が発生して重くなるため、少し広めのマス目にしている）
-    const round = (v) => Math.floor(v / 0.1) * 0.1;
+    const round = (v) => Math.floor(v / 0.15) * 0.15;
     return [round(bbox[1]), round(bbox[0]), round(bbox[3]), round(bbox[2])].join(",");
   }
 
   let overpassFetchInProgress = false; // 同時に複数のリクエストが飛んで重くなるのを防ぐ
+
+  // 溜め込みすぎて描画が重くなるのを防ぐため、取得済みデータが一定量を超えたら
+  // 一度リセットして、必要な範囲だけ取り直す
+  function resetOverpassCacheIfTooLarge(mlMap) {
+    const total =
+      overpassHospitalFeatures.size +
+      overpassRailFeatures.size +
+      overpassIntersectionFeatures.size +
+      overpassStationFeatures.size +
+      overpassFacilityFeatures.size;
+    if (total < 4000) return;
+
+    overpassFetchedCells.clear();
+    overpassHospitalFeatures.clear();
+    overpassRailFeatures.clear();
+    overpassIntersectionFeatures.clear();
+    overpassStationFeatures.clear();
+    overpassFacilityFeatures.clear();
+
+    const empty = { type: "FeatureCollection", features: [] };
+    ["custom_hospitals", "custom_rail", "custom_intersections", "custom_stations", "custom_facilities"].forEach((id) => {
+      if (mlMap.getSource(id)) mlMap.getSource(id).setData(empty);
+    });
+  }
 
   async function fetchOverpassOverlay(mlMap) {
     if (!mlMap || !mlMap.getBounds) return;
     if (overpassFetchInProgress) return; // 前の取得が終わるまでは新しい取得を始めない
     const zoom = mlMap.getZoom();
     if (zoom < 11) return; // 広域表示時は負荷対策として取得しない
+
+    resetOverpassCacheIfTooLarge(mlMap);
 
     const b = mlMap.getBounds();
     const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
@@ -8124,8 +8150,8 @@
     // 　その範囲が永久に再取得されなくなる（＝鉄道が表示されないまま）不具合を防ぐため、
     // 　実際にデータを取得できた場合のみ下で登録する。
 
-    const fetchHospitals = zoom >= 12;
-    const fetchIntersections = zoom >= 13;
+    const fetchHospitals = zoom >= 13;
+    const fetchIntersections = zoom >= 14;
     const s = bbox[1], w = bbox[0], n = bbox[3], e = bbox[2];
 
     let query = "[out:json][timeout:25];(";
@@ -8141,7 +8167,8 @@
     query += `node["railway"~"^(station|halt)$"]["name"](${s},${w},${n},${e});`;
     // 鉄道路線（駅構内の側線・操車場・引込み線等は除外し、本線のみをシンプルな一本線で表示する）
     query += `way["railway"~"^(rail|subway|tram|light_rail|monorail|funicular|narrow_gauge)$"][!"service"](${s},${w},${n},${e});`;
-    if (fetchHospitals) {
+    const fetchFacilities = zoom >= 14; // 種類が多く重くなりやすいので、病院よりさらにズームインしてから取得する
+    if (fetchFacilities) {
       // 基本地図データに含まれない施設カテゴリ（寺院・神社・道の駅・官公庁・警察・消防・銀行等）を追加取得する
       query += `node["amenity"="place_of_worship"]["name"](${s},${w},${n},${e});`;
       query += `node["michinoeki"]["name"](${s},${w},${n},${e});`;
@@ -8430,7 +8457,7 @@
     let overpassTimer = null;
     mlMap.on("moveend", () => {
       clearTimeout(overpassTimer);
-      overpassTimer = setTimeout(() => fetchOverpassOverlay(mlMap), 1000);
+      overpassTimer = setTimeout(() => fetchOverpassOverlay(mlMap), 1400);
     });
   }
 
