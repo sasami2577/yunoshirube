@@ -7607,6 +7607,13 @@
       setMapFullscreen(!mapFullscreenActive);
     });
 
+    $("mapLegendToggle")?.addEventListener("click", () => {
+      const legend = $("mapLegend");
+      if (!legend) return;
+      const nowHidden = legend.classList.toggle("hidden");
+      $("mapLegendToggle").textContent = nowHidden ? "🏷 凡例を表示" : "🏷 凡例を閉じる";
+    });
+
     $("extractLatLngButton")?.addEventListener("click", () => {
       const url = value("googleMapsUrl");
 
@@ -8607,6 +8614,26 @@
     });
   }
 
+  // 全画面表示中、ヘッダー・広告バナーと重ならないよう地図の上下位置を調整する
+  function updateMapFullscreenOffsets() {
+    if (!mapFullscreenActive) return;
+    const header = $("siteHeader");
+    const adBanner = $("adBannerWrap");
+    const headerH = header ? header.getBoundingClientRect().height : 0;
+    const adVisible = document.body.classList.contains("ad-banner-visible") && adBanner && !adBanner.classList.contains("hidden");
+    const adH = adVisible ? adBanner.getBoundingClientRect().height : 0;
+    document.documentElement.style.setProperty("--map-fs-top", `${headerH}px`);
+    document.documentElement.style.setProperty("--map-fs-bottom", `${adH}px`);
+    leafletMap?.invalidateSize();
+  }
+  window.addEventListener("resize", () => {
+    if (mapFullscreenActive) updateMapFullscreenOffsets();
+  });
+  // 広告を閉じた時に地図サイズを自動調整する
+  $("adBannerClose")?.addEventListener("click", () => {
+    setTimeout(updateMapFullscreenOffsets, 0);
+  });
+
   function setMapFullscreen(active) {
     mapFullscreenActive = active;
     $("mapSection")?.classList.toggle("map-fullscreen", active);
@@ -8616,12 +8643,24 @@
     const btn = $("mapExpandButton");
     if (btn) btn.textContent = active ? "✕ 地図を閉じる" : "🗺 地図を拡大して探す";
 
+    // 全画面表示中は「現在地を表示」「マップ切り替え」「地図を閉じる」を横一列に並べる
+    const toolbar = document.querySelector("#mapSection .map-toolbar");
+    const titleRow = document.querySelector("#mapSection .title");
+    if (btn && toolbar && titleRow) {
+      if (active) toolbar.appendChild(btn);
+      else titleRow.appendChild(btn);
+    }
+
     if (active) {
       mapCarouselSortMode = "bounds";
+      updateMapFullscreenOffsets();
       setTimeout(() => {
         leafletMap?.invalidateSize();
         renderMapCardCarousel();
       }, 50);
+    } else {
+      document.documentElement.style.setProperty("--map-fs-top", "0px");
+      document.documentElement.style.setProperty("--map-fs-bottom", "0px");
     }
   }
 
