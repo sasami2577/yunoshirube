@@ -7860,16 +7860,18 @@
   function customizeRoadShields(mlMap) {
     if (!mlMap || !mlMap.getLayer || !mlMap.getLayer("roads_shields")) return;
 
-    const applyShieldStyle = () => {
-      if (!mlMap.hasImage("jp-national-shield")) return;
-      mlMap.setFilter("roads_shields", [
-        "all",
-        ["in", ["get", "kind"], ["literal", ["highway", "major_road"]]],
-        ["has", "shield_text"],
-        ["<=", ["length", ["get", "shield_text"]], 5],
-        // 国道（JP:national）のみ表示し、県道など重複する路線番号は非表示にする
-        ["==", ["get", "network"], "JP:national"]
-      ]);
+    // 1. 表示の絞り込み（国道のみ表示・県道等は非表示）は、画像の読み込みに関係なく必ず適用する
+    mlMap.setFilter("roads_shields", [
+      "all",
+      ["in", ["get", "kind"], ["literal", ["highway", "major_road"]]],
+      ["has", "shield_text"],
+      ["<=", ["length", ["get", "shield_text"]], 5],
+      // 国道（JP:national）のみ表示し、県道など重複する路線番号は非表示にする
+      ["==", ["get", "network"], "JP:national"]
+    ]);
+
+    // 2. おにぎり型アイコンへの差し替えは、画像が読み込めた場合のみ適用する
+    const applyIconStyle = () => {
       mlMap.setLayoutProperty("roads_shields", "icon-image", "jp-national-shield");
       mlMap.setLayoutProperty("roads_shields", "icon-text-fit", "both");
       mlMap.setLayoutProperty("roads_shields", "icon-text-fit-padding", [2, 3, 2, 3]);
@@ -7877,21 +7879,23 @@
     };
 
     if (mlMap.hasImage("jp-national-shield")) {
-      applyShieldStyle();
+      applyIconStyle();
       return;
     }
 
     mlMap.loadImage("map-assets/jp-national-shield.png", (error, image) => {
-      if (error || !image || mlMap.hasImage("jp-national-shield")) {
-        if (!error) applyShieldStyle();
+      if (error || !image) {
+        console.warn("国道バッジ画像（map-assets/jp-national-shield.png）の読み込みに失敗しました。リポジトリへのアップロードとパスをご確認ください。", error);
         return;
       }
-      mlMap.addImage("jp-national-shield", image, {
-        stretchX: [[22, 42]],
-        stretchY: [[16, 32]],
-        content: [18, 10, 46, 34]
-      });
-      applyShieldStyle();
+      if (!mlMap.hasImage("jp-national-shield")) {
+        mlMap.addImage("jp-national-shield", image, {
+          stretchX: [[22, 42]],
+          stretchY: [[16, 32]],
+          content: [18, 10, 46, 34]
+        });
+      }
+      applyIconStyle();
     });
   }
 
