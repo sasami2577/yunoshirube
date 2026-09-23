@@ -7592,7 +7592,10 @@
     });
 
     $("mapStyleToggleButton")?.addEventListener("click", () => {
-      applyMapStyle(currentMapStyle === "aerial" ? "osm" : "aerial");
+      const order = window.ONSEN_PROTOMAPS_CONFIG?.apiKey ? ["aerial", "osm", "dark"] : ["aerial", "osm"];
+      const currentIndex = order.indexOf(currentMapStyle);
+      const nextStyle = order[(currentIndex + 1) % order.length] || "aerial";
+      applyMapStyle(nextStyle);
     });
 
     $("showCurrentLocationButton")?.addEventListener("click", () => {
@@ -7856,20 +7859,41 @@
   function applyMapStyle(style) {
     if (!leafletMap) return;
 
-    const config = TILE_LAYER_CONFIGS[style] || TILE_LAYER_CONFIGS.aerial;
-
     if (currentTileLayer) {
       leafletMap.removeLayer(currentTileLayer);
+      currentTileLayer = null;
     }
-    currentTileLayer = L.tileLayer(config.url, config.options).addTo(leafletMap);
+
+    if (style === "dark") {
+      const apiKey = window.ONSEN_PROTOMAPS_CONFIG?.apiKey;
+      if (apiKey && window.protomapsL) {
+        currentTileLayer = protomapsL
+          .leafletLayer({
+            url: `https://api.protomaps.com/tiles/v4/{z}/{x}/{y}.mvt?key=${apiKey}`,
+            flavor: "dark",
+            lang: "ja"
+          })
+          .addTo(leafletMap);
+      } else {
+        // APIキー未設定の場合は通常マップにフォールバック
+        style = "osm";
+        currentTileLayer = L.tileLayer(TILE_LAYER_CONFIGS.osm.url, TILE_LAYER_CONFIGS.osm.options).addTo(leafletMap);
+      }
+    } else {
+      const config = TILE_LAYER_CONFIGS[style] || TILE_LAYER_CONFIGS.aerial;
+      currentTileLayer = L.tileLayer(config.url, config.options).addTo(leafletMap);
+    }
+
     currentMapStyle = style;
 
     const toggleButton = $("mapStyleToggleButton");
     if (toggleButton) {
-      toggleButton.textContent =
-        style === "aerial"
-          ? "🗺 通常マップに変更"
-          : "🗺 航空写真に変更";
+      const labels = {
+        aerial: "🗺 通常マップに変更",
+        osm: window.ONSEN_PROTOMAPS_CONFIG?.apiKey ? "🌙 ダークマップに変更" : "🗺 航空写真に変更",
+        dark: "🛰 航空写真に変更"
+      };
+      toggleButton.textContent = labels[style] || labels.aerial;
     }
   }
 
