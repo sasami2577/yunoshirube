@@ -7856,11 +7856,10 @@
     }
   };
 
-  // 道路番号バッジ（roads_shieldsレイヤー）を、国道のみ・おにぎり型の見た目に差し替える
+  // 道路番号バッジ（roads_shieldsレイヤー）を国道のみに絞り込む（見た目は既定のバッジのまま）
   function customizeRoadShields(mlMap) {
     if (!mlMap || !mlMap.getLayer || !mlMap.getLayer("roads_shields")) return;
 
-    // 1. 表示の絞り込み（国道のみ表示・県道等は非表示）は、画像の読み込みに関係なく必ず適用する
     mlMap.setFilter("roads_shields", [
       "all",
       ["in", ["get", "kind"], ["literal", ["highway", "major_road"]]],
@@ -7869,34 +7868,6 @@
       // 国道（JP:national）のみ表示し、県道など重複する路線番号は非表示にする
       ["==", ["get", "network"], "JP:national"]
     ]);
-
-    // 2. おにぎり型アイコンへの差し替えは、画像が読み込めた場合のみ適用する
-    const applyIconStyle = () => {
-      mlMap.setLayoutProperty("roads_shields", "icon-image", "jp-national-shield");
-      mlMap.setLayoutProperty("roads_shields", "icon-text-fit", "both");
-      mlMap.setLayoutProperty("roads_shields", "icon-text-fit-padding", [2, 3, 2, 3]);
-      mlMap.setPaintProperty("roads_shields", "text-color", "#ffffff");
-    };
-
-    if (mlMap.hasImage("jp-national-shield")) {
-      applyIconStyle();
-      return;
-    }
-
-    mlMap.loadImage("map-assets/jp-national-shield.png", (error, image) => {
-      if (error || !image) {
-        console.warn("国道バッジ画像（map-assets/jp-national-shield.png）の読み込みに失敗しました。リポジトリへのアップロードとパスをご確認ください。", error);
-        return;
-      }
-      if (!mlMap.hasImage("jp-national-shield")) {
-        mlMap.addImage("jp-national-shield", image, {
-          stretchX: [[22, 42]],
-          stretchY: [[16, 32]],
-          content: [18, 10, 46, 34]
-        });
-      }
-      applyIconStyle();
-    });
   }
 
   function applyProtomapsFlavor(flavor) {
