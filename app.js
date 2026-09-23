@@ -7858,14 +7858,12 @@
 
   function applyProtomapsFlavor(flavor) {
     const apiKey = window.ONSEN_PROTOMAPS_CONFIG?.apiKey;
-    if (!apiKey || !window.protomapsL) return null;
-    return protomapsL
-      .leafletLayer({
-        url: `https://api.protomaps.com/tiles/v4/{z}/{x}/{y}.mvt?key=${apiKey}`,
-        flavor,
-        lang: "ja"
-      })
-      .addTo(leafletMap);
+    if (!apiKey || !window.L?.maplibreGL) return null;
+    // MapLibre GL（ベクター描画）をLeafletのレイヤーとして重ねることで、
+    // 駅・公園・ランドマークなどのPOIラベルを含む本格的なスタイルを表示する
+    return L.maplibreGL({
+      style: `https://api.protomaps.com/styles/v5/${flavor}/ja.json?key=${apiKey}`
+    }).addTo(leafletMap);
   }
 
   function applyMapStyle(style) {
