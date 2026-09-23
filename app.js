@@ -7603,6 +7603,10 @@
       requestUserLocation({ recenter: true });
     });
 
+    $("mapExpandButton")?.addEventListener("click", () => {
+      setMapFullscreen(!mapFullscreenActive);
+    });
+
     $("extractLatLngButton")?.addEventListener("click", () => {
       const url = value("googleMapsUrl");
 
@@ -8557,7 +8561,68 @@
     leafletMap.on("zoomend", () => {
       renderMapMarkers(lastMapItems);
     });
+    leafletMap.on("moveend zoomend", () => {
+      if (mapFullscreenActive) renderMapCardCarousel();
+    });
     renderMapLegend();
+  }
+
+  // ------------------------------------------------------------------
+  // 地図拡大表示＋下部カードカルーセル
+  // ------------------------------------------------------------------
+  let mapFullscreenActive = false;
+  let mapCarouselSortMode = "bounds"; // "bounds"＝現在表示中の範囲の施設／"distance"＝現在地から近い順
+
+  function getVisibleMapItems() {
+    if (!leafletMap) return [];
+    const bounds = leafletMap.getBounds();
+    return (Array.isArray(lastMapItems) ? lastMapItems : []).filter((item) =>
+      bounds.contains([Number(item.lat), Number(item.lng)])
+    );
+  }
+
+  function renderMapCardCarousel() {
+    const carousel = $("mapCardCarousel");
+    if (!carousel) return;
+
+    let items = getVisibleMapItems();
+
+    if (mapCarouselSortMode === "distance" && window.__userLocation) {
+      const { lat: uLat, lng: uLng } = window.__userLocation;
+      items = [...items].sort(
+        (a, b) =>
+          distanceKm(uLat, uLng, Number(a.lat), Number(a.lng)) -
+          distanceKm(uLat, uLng, Number(b.lat), Number(b.lng))
+      );
+    }
+
+    carousel.innerHTML = items.length
+      ? items.map((item) => renderAreaFacilityCard(item)).join("")
+      : `<p class="map-card-carousel-empty">この範囲に表示できる施設がありません。地図を動かしてみてください。</p>`;
+
+    carousel.querySelectorAll(".area-facility-detail-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        location.hash = `#detail-${btn.dataset.id}`;
+      });
+    });
+  }
+
+  function setMapFullscreen(active) {
+    mapFullscreenActive = active;
+    $("mapSection")?.classList.toggle("map-fullscreen", active);
+    document.body.classList.toggle("map-fullscreen-active", active);
+    $("mapCardCarousel")?.classList.toggle("hidden", !active);
+
+    const btn = $("mapExpandButton");
+    if (btn) btn.textContent = active ? "✕ 地図を閉じる" : "🗺 地図を拡大して探す";
+
+    if (active) {
+      mapCarouselSortMode = "bounds";
+      setTimeout(() => {
+        leafletMap?.invalidateSize();
+        renderMapCardCarousel();
+      }, 50);
+    }
   }
 
   function renderMapLegend() {
@@ -8609,6 +8674,11 @@
         };
 
         renderCardsWithData(window.__onsenData);
+
+        if (mapFullscreenActive) {
+          mapCarouselSortMode = "distance";
+          renderMapCardCarousel();
+        }
 
         if (leafletMap && window.L) {
           if (currentLocationMarker) {

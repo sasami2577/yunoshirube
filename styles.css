@@ -26,6 +26,20 @@ body.ad-banner-visible{padding-bottom:80px}
 .auth-divider::before,.auth-divider::after{content:"";flex:1;height:1px;background:#e6e1dd}
 .auth-google-button{width:100%;background:#fff;color:#3c4043;border:1px solid #dadce0}
 .map-section{margin-bottom:25px}
+.map-expand-button{margin-left:auto;white-space:nowrap}
+.map-section.map-fullscreen{position:fixed;inset:0;z-index:1200;margin:0;background:#fff;display:flex;flex-direction:column;padding:12px 12px env(safe-area-inset-bottom);box-sizing:border-box}
+.map-section.map-fullscreen .title{flex-wrap:wrap}
+.map-section.map-fullscreen #mapContainer{flex:1;height:auto;min-height:0;border-radius:14px}
+.map-section.map-fullscreen .map-card-carousel{display:flex}
+body.map-fullscreen-active{overflow:hidden}
+.map-card-carousel{display:none;gap:12px;overflow-x:auto;padding:12px 2px 4px;margin-top:10px;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}
+.map-card-carousel.hidden{display:none}
+.map-card-carousel .area-facility-card{flex:0 0 auto;width:250px;height:230px;display:flex;flex-direction:column;align-items:stretch;overflow:hidden;scroll-snap-align:start}
+.map-card-carousel .area-facility-card-body{overflow:hidden}
+.map-card-carousel .area-facility-card-body h3{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.map-card-carousel .area-facility-card-body p{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px}
+.map-card-carousel .area-facility-detail-btn{width:100%;margin-top:auto}
+.map-card-carousel-empty{color:#837d77;font-size:14px;padding:10px 4px}
 .half-fill-heading{display:inline-block;padding:1px 8px;background-repeat:no-repeat;border-radius:4px}
 .half-fill-heading.half-fill-green{background-image:linear-gradient(to bottom,transparent 52%,#a8dab5 52%)}
 .half-fill-heading.half-fill-yellow{background-image:linear-gradient(to bottom,transparent 52%,#ffe58a 52%)}
