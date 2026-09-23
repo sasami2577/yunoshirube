@@ -7887,9 +7887,9 @@
         return;
       }
       mlMap.addImage("jp-national-shield", image, {
-        stretchX: [[20, 44]],
-        stretchY: [[14, 34]],
-        content: [16, 8, 48, 36]
+        stretchX: [[22, 42]],
+        stretchY: [[16, 32]],
+        content: [18, 10, 46, 34]
       });
       applyShieldStyle();
     });
