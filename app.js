@@ -7878,11 +7878,11 @@
     if (!mlMap || !mlMap.getLayer || !mlMap.getLayer("pois")) return;
 
     // 元のズーム連動サイズ（zoom17:10px, zoom19:16px）はそのまま維持しつつ、
-    // 対象カテゴリだけ2倍のサイズ・太字フォントにする
+    // 対象カテゴリだけ文字は大きく（2.5倍）・アイコンは控えめに（1.1倍）・太字フォントにする
     mlMap.setLayoutProperty("pois", "text-size", [
       "*",
       ["interpolate", ["linear"], ["zoom"], 17, 10, 19, 16],
-      ["match", ["get", "kind"], EMPHASIZED_POI_KINDS, 2, 1]
+      ["match", ["get", "kind"], EMPHASIZED_POI_KINDS, 2.5, 1]
     ]);
     mlMap.setLayoutProperty("pois", "text-font", [
       "match",
@@ -7892,7 +7892,7 @@
       ["literal", ["Noto Sans Regular"]]
     ]);
     mlMap.setLayoutProperty("pois", "icon-size", [
-      "match", ["get", "kind"], EMPHASIZED_POI_KINDS, 1.8, 1
+      "match", ["get", "kind"], EMPHASIZED_POI_KINDS, 1.1, 1
     ]);
     // 文字が大きくなった分、白フチ（ハロー）も少し太くして視認性を保つ
     mlMap.setPaintProperty("pois", "text-halo-width", [
@@ -7901,8 +7901,8 @@
   }
 
   // 国道・県道・高速道路・主要幹線道路の色をカスタマイズする（config.jsのONSEN_ROAD_COLOR_CONFIGで色指定）
-  const ROAD_LINE_WIDTH = ["interpolate", ["exponential", 1.6], ["zoom"], 6, 0, 12, 1.6, 15, 3, 18, 13];
-
+  // ※ 新しいレイヤーを重ねるのではなく、既存のroads_major / roads_highwayレイヤー自体の色を
+  // 　直接書き換えることで、重ね順の問題で色が反映されない事態を避けている
   function customizeRoadColors(mlMap) {
     if (!mlMap || !mlMap.getLayer) return;
     const cfg = window.ONSEN_ROAD_COLOR_CONFIG || {};
@@ -7913,49 +7913,15 @@
     }
 
     // Protomapsの道路データは「国道」「県道」「その他幹線道路」を色分けしていないため、
-    // 路線番号（network）や種別（kind）で絞り込んだ専用レイヤーを上に重ねて色を変える
-    const addOverlay = (id, filter, color) => {
-      if (!color || mlMap.getLayer(id) || !mlMap.getLayer("roads_major")) return;
-      mlMap.addLayer({
-        id,
-        type: "line",
-        source: "protomaps",
-        "source-layer": "roads",
-        filter,
-        paint: { "line-color": color, "line-width": ROAD_LINE_WIDTH }
-      }, "roads_highway_casing_early");
-    };
-
-    // 国道（network = JP:national）
-    addOverlay("roads_major_national_over", [
-      "all",
-      ["!has", "is_tunnel"], ["!has", "is_bridge"],
-      ["==", "kind", "major_road"],
-      ["==", ["get", "network"], "JP:national"]
-    ], cfg.national);
-
-    // 県道（network に JP:prefectural を含む）
-    addOverlay("roads_major_prefectural_over", [
-      "all",
-      ["!has", "is_tunnel"], ["!has", "is_bridge"],
-      ["==", "kind", "major_road"],
-      ["has", "network"],
-      ["in", "JP:prefectural", ["get", "network"]]
-    ], cfg.prefectural);
-
-    // 主要幹線道路（国道・県道以外のmajor_road。番号のない幹線道路など）
-    addOverlay("roads_major_other_over", [
-      "all",
-      ["!has", "is_tunnel"], ["!has", "is_bridge"],
-      ["==", "kind", "major_road"],
-      ["any",
-        ["!has", "network"],
-        ["all",
-          ["!=", ["get", "network"], "JP:national"],
-          ["!", ["in", "JP:prefectural", ["get", "network"]]]
-        ]
-      ]
-    ], cfg.majorOther);
+    // 路線番号（network）タグを見て、既存レイヤーの色そのものを条件分岐で書き換える
+    if (mlMap.getLayer("roads_major") && (cfg.national || cfg.prefectural || cfg.majorOther)) {
+      mlMap.setPaintProperty("roads_major", "line-color", [
+        "case",
+        ["==", ["get", "network"], "JP:national"], cfg.national || "#ffffff",
+        ["all", ["has", "network"], ["in", "JP:prefectural", ["get", "network"]]], cfg.prefectural || "#ffffff",
+        cfg.majorOther || "#ffffff"
+      ]);
+    }
   }
 
   // ------------------------------------------------------------------
@@ -7972,7 +7938,7 @@
   // 交差点名バッジ用の角丸アイコンをその場で生成する（画像ファイルのアップロード不要）
   function ensureBadgeIcon(mlMap, id, color) {
     if (mlMap.hasImage(id)) return;
-    const w = 32, h = 20, r = 6;
+    const w = 24, h = 14, r = 4;
     const canvas = document.createElement("canvas");
     canvas.width = w;
     canvas.height = h;
@@ -8196,10 +8162,10 @@
       layout: {
         "icon-image": "intersection_badge",
         "icon-text-fit": "both",
-        "icon-text-fit-padding": [4, 8, 4, 8],
+        "icon-text-fit-padding": [2, 5, 2, 5],
         "text-field": ["get", "name"],
         "text-font": ["Noto Sans Bold"],
-        "text-size": ["interpolate", ["linear"], ["zoom"], 15, 11, 19, 15]
+        "text-size": ["interpolate", ["linear"], ["zoom"], 15, 8, 19, 11]
       },
       paint: {
         "text-color": "#ffffff"
