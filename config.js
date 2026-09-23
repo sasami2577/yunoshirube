@@ -61,10 +61,10 @@ window.ONSEN_ROAD_COLOR_CONFIG = {
   majorOther: "#ec407a",   // 主要幹線道路（国道・県道以外） → ピンク
   // その他の道路は白のまま（変更なし）
 
-  railJr: "#4fc3f7",         // JR線 → 水色
-  railShinkansen: "#1e88e5", // 新幹線 → 青
-  railPrivate: "#7e57c2",    // 私鉄 → 紫
+  railJr: "#283593",         // JR線 → 藍色
+  railShinkansen: "#1e88e5", // 新幹線 → 青色
+  railPrivate: "#7e57c2",    // 私鉄 → 紫色
   railSubway: "#795548",     // 地下鉄 → 茶色
-  railTram: "#9ccc65",       // 路面電車 → 黄緑
-  railOther: "#283593"       // 第三セクター・モノレール・ケーブルカー・新交通システム・その他 → 藍色
+  railTram: "#9ccc65",       // 路面電車 → 黄緑色
+  railOther: null            // 第三セクター・モノレール・ケーブルカー・新交通システム・その他 → 色分けなし（地図の標準色のまま）
 };

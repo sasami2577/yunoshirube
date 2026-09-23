@@ -7961,33 +7961,43 @@
   }
 
   // 鉄道の種別（JR線／新幹線／私鉄／地下鉄／路面電車／その他）をOSMタグから推定する
+  // ※ 駅構内・操車場の線路などはoperator（運行会社）タグが付いていないことが多く、
+  // 　その場合はJR線として扱う（無タグ路線は私鉄よりJR線であるケースの方が圧倒的に多いため）
   function classifyRailCategory(tags) {
     tags = tags || {};
     const operator = tags.operator || "";
+    const network = tags.network || "";
     const railway = tags.railway || "";
-    if (tags.highspeed === "yes" || /新幹線/.test(operator)) return "shinkansen";
+    if (tags.highspeed === "yes" || /新幹線/.test(operator) || /新幹線/.test(network)) return "shinkansen";
     if (railway === "subway") return "subway";
     if (railway === "tram" || railway === "light_rail") return "tram";
     if (railway === "monorail" || railway === "funicular" || railway === "narrow_gauge") return "other";
-    if (/(JR|Ｊ Ｒ|Ｊ・Ｒ)/i.test(operator) || /東日本旅客鉄道|西日本旅客鉄道|東海旅客鉄道|九州旅客鉄道|北海道旅客鉄道|四国旅客鉄道|日本貨物鉄道/.test(operator)) return "jr";
+
+    const jrPattern = /(JR|Ｊ Ｒ|Ｊ・Ｒ)|東日本旅客鉄道|西日本旅客鉄道|東海旅客鉄道|九州旅客鉄道|北海道旅客鉄道|四国旅客鉄道|日本貨物鉄道/i;
+    if (jrPattern.test(operator) || jrPattern.test(network)) return "jr";
+
+    // 明確に私鉄・第三セクターと分かる場合のみ「私鉄」に分類し、
+    // operatorタグが無い（駅構内の側線・引込み線など）場合はJR線としてまとめる
+    if (!operator) return "jr";
     return "private";
   }
 
   function railCategoryColor(category) {
     const cfg = window.ONSEN_ROAD_COLOR_CONFIG || {};
     const defaults = {
-      jr: "#4fc3f7",
-      shinkansen: "#1e88e5",
-      private: "#7e57c2",
-      subway: "#795548",
-      tram: "#9ccc65",
-      other: "#283593"
+      jr: "#283593",       // 藍色
+      shinkansen: "#1e88e5", // 青色
+      private: "#7e57c2",   // 紫色
+      subway: "#795548",    // 茶色
+      tram: "#9ccc65",      // 黄緑色
+      other: "#a7b1b3"      // 色分けなし（地図の標準色のまま）
     };
     const cfgKeyMap = {
       jr: "railJr", shinkansen: "railShinkansen", private: "railPrivate",
       subway: "railSubway", tram: "railTram", other: "railOther"
     };
-    return cfg[cfgKeyMap[category]] || defaults[category];
+    const cfgValue = cfg[cfgKeyMap[category]];
+    return cfgValue || defaults[category];
   }
 
   function overpassBboxKey(bbox) {
@@ -8005,7 +8015,9 @@
     const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
     const cellKey = overpassBboxKey(bbox);
     if (overpassFetchedCells.has(cellKey)) return;
-    overpassFetchedCells.add(cellKey);
+    // ※ ここでは「取得済み」に登録しない。通信エラーやタイムアウトの際に
+    // 　その範囲が永久に再取得されなくなる（＝鉄道が表示されないまま）不具合を防ぐため、
+    // 　実際にデータを取得できた場合のみ下で登録する。
 
     const fetchHospitals = zoom >= 14;
     const fetchIntersections = zoom >= 15;
@@ -8027,8 +8039,9 @@
         method: "POST",
         body: "data=" + encodeURIComponent(query)
       });
-      if (!res.ok) return;
+      if (!res.ok) return; // 失敗時はoverpassFetchedCellsに登録しないので、次回のmoveendで再取得される
       const data = await res.json();
+      overpassFetchedCells.add(cellKey); // ここまで来たら取得成功
       let hospitalsChanged = false;
       let railChanged = false;
       let intersectionsChanged = false;
