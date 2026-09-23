@@ -98,8 +98,6 @@ details.filter-region>.filter-city-slot:not(:empty){margin-top:6px}
 .leaflet-popup-close-button{color:#666!important;font-size:20px!important;top:6px!important;right:6px!important;width:26px!important;height:26px!important;display:flex!important;align-items:center;justify-content:center;border-radius:50%!important}
 .leaflet-popup-close-button:hover{color:#202124!important;background:#f0f0f0!important}
 .map-pin-wrapper{background:transparent;border:none}
-.map-pin-label{background:#fff;color:#333;font-size:12px;font-weight:600;padding:2px 7px;border-radius:5px;border:none;box-shadow:0 1px 4px rgba(0,0,0,.3);white-space:nowrap}
-.map-pin-label::before{display:none}
 .map-cluster-count-wrapper{background:transparent;border:none}
 .map-cluster-count{position:relative;transform:translate(-50%,-50%);background:#fff;color:#c0392b;border:2px solid #e0392b;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:15px;box-shadow:0 2px 6px rgba(0,0,0,.3)}
 .map-cluster-zoom-btn{display:block;width:100%;margin-top:8px;background:#875020;color:#fff;border:none;padding:8px;border-radius:8px;font-weight:700;font-size:13px}
