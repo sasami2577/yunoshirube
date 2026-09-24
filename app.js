@@ -7630,6 +7630,11 @@
       if (!legend) return;
       const nowHidden = legend.classList.toggle("hidden");
       $("mapLegendToggle").textContent = nowHidden ? "🏷 凡例を表示" : "🏷 凡例を閉じる";
+      // 凡例の表示・非表示で地図の高さが変わるため、地図の描画サイズも更新する
+      setTimeout(() => {
+        leafletMap?.invalidateSize();
+        resizeMapLibreCanvas();
+      }, 0);
     });
 
     $("extractLatLngButton")?.addEventListener("click", () => {
@@ -8589,15 +8594,32 @@
         );
       };
 
+      // ※ コンテナのサイズが確定する前にWebGLキャンバスが作られると、
+      // 　データ自体は正常に読み込めていても画面には何も描画されない（真っ白のまま）ことがあるため、
+      // 　読み込み完了後に強制的にリサイズ・再描画させて保険をかける
+      const forceRepaint = () => {
+        try {
+          mlMap.resize();
+          mlMap.triggerRepaint?.();
+        } catch (err) {
+          console.warn("地図の再描画（resize）に失敗しました:", err);
+        }
+      };
+
       mlMap.on("load", () => {
         protomapsLoaded = true;
         hideMapDiagnostic();
         applyCustomizations(mlMap);
+        forceRepaint();
+        setTimeout(forceRepaint, 300);
+        setTimeout(forceRepaint, 1200);
       });
       // スタイルが既に読み込み済みの場合（キャッシュ等）にも適用されるよう保険をかける
       if (mlMap.isStyleLoaded && mlMap.isStyleLoaded()) {
         protomapsLoaded = true;
         applyCustomizations(mlMap);
+        forceRepaint();
+        setTimeout(forceRepaint, 300);
       }
 
       // Protomaps側でエラー（利用上限超過・通信エラー等）が起きた場合の処理
@@ -8783,6 +8805,21 @@
     document.documentElement.style.setProperty("--map-fs-top", `${headerH}px`);
     document.documentElement.style.setProperty("--map-fs-bottom", `${adH}px`);
     leafletMap?.invalidateSize();
+    resizeMapLibreCanvas();
+  }
+
+  // コンテナのサイズが変わったタイミングで、MapLibreのWebGLキャンバスにも
+  // 明示的にリサイズをかける（真っ白のまま描画が更新されない不具合の対策）
+  function resizeMapLibreCanvas() {
+    if (currentTileLayer && typeof currentTileLayer.getMaplibreMap === "function") {
+      const mlMap = currentTileLayer.getMaplibreMap();
+      try {
+        mlMap?.resize();
+        mlMap?.triggerRepaint?.();
+      } catch (err) {
+        console.warn("地図の再描画（resize）に失敗しました:", err);
+      }
+    }
   }
   window.addEventListener("resize", () => {
     if (mapFullscreenActive) updateMapFullscreenOffsets();
@@ -8799,15 +8836,7 @@
     if (document.visibilityState !== "visible" || !leafletMap) return;
     setTimeout(() => {
       leafletMap.invalidateSize();
-      if (currentTileLayer && typeof currentTileLayer.getMaplibreMap === "function") {
-        const mlMap = currentTileLayer.getMaplibreMap();
-        try {
-          mlMap?.resize();
-          mlMap?.triggerRepaint?.();
-        } catch (err) {
-          console.warn("地図の再描画に失敗しました:", err);
-        }
-      }
+      resizeMapLibreCanvas();
     }, 300);
   });
 
@@ -8840,8 +8869,13 @@
       updateMapFullscreenOffsets();
       setTimeout(() => {
         leafletMap?.invalidateSize();
+        resizeMapLibreCanvas();
         renderMapCardCarousel();
       }, 50);
+      setTimeout(() => {
+        leafletMap?.invalidateSize();
+        resizeMapLibreCanvas();
+      }, 350);
     } else {
       document.documentElement.style.setProperty("--map-fs-top", "0px");
       document.documentElement.style.setProperty("--map-fs-bottom", "0px");
