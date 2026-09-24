@@ -8536,9 +8536,49 @@
 
     const mlMap = glLayer.getMaplibreMap?.();
     if (mlMap) {
-      mlMap.on("load", () => applyCustomizations(mlMap));
+      let protomapsLoaded = false;
+      let protomapsFailed = false;
+      let errorCountAfterLoad = 0;
+
+      const fallbackToOsm = (reason) => {
+        if (currentTileLayer !== glLayer) return; // 既に切り替え済み、または別の地図に変更済み
+        console.warn(reason);
+        leafletMap.removeLayer(glLayer);
+        currentTileLayer = L.tileLayer(TILE_LAYER_CONFIGS.osm.url, TILE_LAYER_CONFIGS.osm.options).addTo(leafletMap);
+      };
+
+      mlMap.on("load", () => {
+        protomapsLoaded = true;
+        applyCustomizations(mlMap);
+      });
       // スタイルが既に読み込み済みの場合（キャッシュ等）にも適用されるよう保険をかける
-      if (mlMap.isStyleLoaded && mlMap.isStyleLoaded()) applyCustomizations(mlMap);
+      if (mlMap.isStyleLoaded && mlMap.isStyleLoaded()) {
+        protomapsLoaded = true;
+        applyCustomizations(mlMap);
+      }
+
+      // Protomaps側でエラー（利用上限超過・通信エラー等）が起きた場合の処理
+      mlMap.on("error", (e) => {
+        console.warn("Protomaps地図の読み込みでエラーが発生しました（利用上限に達している可能性があります）:", e?.error || e);
+        if (!protomapsLoaded) {
+          protomapsFailed = true;
+          return;
+        }
+        // 最初の読み込みは成功しても、ズームインした際にタイル取得エラーが続く場合
+        // （利用上限超過などでズーム時のタイルだけ取得できない状態）も自動で切り替える
+        errorCountAfterLoad++;
+        if (errorCountAfterLoad >= 8) {
+          fallbackToOsm("Protomaps地図で多数のタイル読み込みエラーが発生したため、通常のOSM地図に自動的に切り替えます。");
+        }
+      });
+
+      // 一定時間たっても読み込みが完了しない・エラーが出た場合は、
+      // 地図が真っ白のままにならないよう自動的に通常のOSM地図に切り替える
+      setTimeout(() => {
+        if (protomapsFailed || !protomapsLoaded) {
+          fallbackToOsm("Protomaps地図の読み込みに失敗したため、通常のOSM地図に自動的に切り替えます。");
+        }
+      }, 7000);
     }
 
     return glLayer;
@@ -8700,6 +8740,25 @@
   // 広告を閉じた時に地図サイズを自動調整する
   $("adBannerClose")?.addEventListener("click", () => {
     setTimeout(updateMapFullscreenOffsets, 0);
+  });
+
+  // iPhoneでアプリを切り替えたり画面をロックしたりして戻ってきたときに、
+  // 地図の描画（タイル・駅名・道路の色など）が固まって消えたままになることがあるため、
+  // 画面に戻ってきたタイミングで地図を強制的に再描画させる
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible" || !leafletMap) return;
+    setTimeout(() => {
+      leafletMap.invalidateSize();
+      if (currentTileLayer && typeof currentTileLayer.getMaplibreMap === "function") {
+        const mlMap = currentTileLayer.getMaplibreMap();
+        try {
+          mlMap?.resize();
+          mlMap?.triggerRepaint?.();
+        } catch (err) {
+          console.warn("地図の再描画に失敗しました:", err);
+        }
+      }
+    }, 300);
   });
 
   function setMapFullscreen(active) {
