@@ -8515,6 +8515,43 @@
     });
   }
 
+  // 地図の読み込みに失敗したときに、原因を画面上に表示して再読み込みできるようにする
+  // （ユーザーがスクリーンショットで状況を伝えやすくするための診断表示）
+  function showMapDiagnostic(message) {
+    const box = $("mapDiagnostic");
+    const text = $("mapDiagnosticText");
+    if (text) text.textContent = message;
+    box?.classList.remove("hidden");
+  }
+  function hideMapDiagnostic() {
+    $("mapDiagnostic")?.classList.add("hidden");
+  }
+  // ラスタタイル（航空写真・簡易OSM地図）自体の読み込みにも失敗している場合を検知する
+  function watchRasterTileErrors(layer) {
+    if (!layer || typeof layer.on !== "function") return;
+    let tileErrorCount = 0;
+    layer.on("tileerror", () => {
+      tileErrorCount++;
+      if (tileErrorCount >= 6 && currentTileLayer === layer) {
+        showMapDiagnostic(
+          "地図タイルの読み込みに失敗しています。通信状況をご確認のうえ、下のボタンで再読み込みしてみてください。"
+        );
+      }
+    });
+    layer.on("tileload", () => {
+      if (currentTileLayer === layer) hideMapDiagnostic();
+    });
+  }
+
+  $("mapDiagnosticRetry")?.addEventListener("click", () => {
+    hideMapDiagnostic();
+    if (leafletMap && currentTileLayer) {
+      leafletMap.removeLayer(currentTileLayer);
+      currentTileLayer = null;
+    }
+    applyMapStyle(currentMapStyle);
+  });
+
   function applyProtomapsFlavor(flavor) {
     const apiKey = window.ONSEN_PROTOMAPS_CONFIG?.apiKey;
     if (!apiKey || !window.L?.maplibreGL) return null;
@@ -8538,17 +8575,23 @@
     if (mlMap) {
       let protomapsLoaded = false;
       let protomapsFailed = false;
+      let protomapsFailReason = "";
       let errorCountAfterLoad = 0;
 
-      const fallbackToOsm = (reason) => {
+      const fallbackToOsm = (reason, detail) => {
         if (currentTileLayer !== glLayer) return; // 既に切り替え済み、または別の地図に変更済み
-        console.warn(reason);
+        console.warn(reason, detail || "");
         leafletMap.removeLayer(glLayer);
         currentTileLayer = L.tileLayer(TILE_LAYER_CONFIGS.osm.url, TILE_LAYER_CONFIGS.osm.options).addTo(leafletMap);
+        watchRasterTileErrors(currentTileLayer);
+        showMapDiagnostic(
+          `地図（駅名・道路の色つき表示）の読み込みに失敗したため、簡易地図に切り替えました。${detail ? `（詳細: ${String(detail).slice(0, 80)}）` : ""}`
+        );
       };
 
       mlMap.on("load", () => {
         protomapsLoaded = true;
+        hideMapDiagnostic();
         applyCustomizations(mlMap);
       });
       // スタイルが既に読み込み済みの場合（キャッシュ等）にも適用されるよう保険をかける
@@ -8559,16 +8602,17 @@
 
       // Protomaps側でエラー（利用上限超過・通信エラー等）が起きた場合の処理
       mlMap.on("error", (e) => {
-        console.warn("Protomaps地図の読み込みでエラーが発生しました（利用上限に達している可能性があります）:", e?.error || e);
+        const detail = e?.error?.message || e?.error || e;
+        console.warn("Protomaps地図の読み込みでエラーが発生しました:", detail);
         if (!protomapsLoaded) {
           protomapsFailed = true;
+          protomapsFailReason = detail;
           return;
         }
-        // 最初の読み込みは成功しても、ズームインした際にタイル取得エラーが続く場合
-        // （利用上限超過などでズーム時のタイルだけ取得できない状態）も自動で切り替える
+        // 最初の読み込みは成功しても、ズームインした際にタイル取得エラーが続く場合も自動で切り替える
         errorCountAfterLoad++;
         if (errorCountAfterLoad >= 8) {
-          fallbackToOsm("Protomaps地図で多数のタイル読み込みエラーが発生したため、通常のOSM地図に自動的に切り替えます。");
+          fallbackToOsm("Protomaps地図で多数のタイル読み込みエラーが発生したため、通常のOSM地図に自動的に切り替えます。", detail);
         }
       });
 
@@ -8576,7 +8620,10 @@
       // 地図が真っ白のままにならないよう自動的に通常のOSM地図に切り替える
       setTimeout(() => {
         if (protomapsFailed || !protomapsLoaded) {
-          fallbackToOsm("Protomaps地図の読み込みに失敗したため、通常のOSM地図に自動的に切り替えます。");
+          fallbackToOsm(
+            "Protomaps地図の読み込みに失敗したため、通常のOSM地図に自動的に切り替えます。",
+            protomapsFailReason || (protomapsFailed ? "読み込みエラー" : "タイムアウト（7秒以内に読み込み完了しなかった）")
+          );
         }
       }, 7000);
     }
@@ -8586,6 +8633,8 @@
 
   function applyMapStyle(style) {
     if (!leafletMap) return;
+
+    hideMapDiagnostic();
 
     if (currentTileLayer) {
       leafletMap.removeLayer(currentTileLayer);
@@ -8606,6 +8655,7 @@
       // Protomaps未設定時や航空写真スタイルは従来のラスタタイルを使用
       const config = TILE_LAYER_CONFIGS[style] || TILE_LAYER_CONFIGS.aerial;
       currentTileLayer = L.tileLayer(config.url, config.options).addTo(leafletMap);
+      watchRasterTileErrors(currentTileLayer);
     }
 
     currentMapStyle = style;

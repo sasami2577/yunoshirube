@@ -105,6 +105,11 @@ details.filter-region>.filter-city-slot:not(:empty){margin-top:6px}
 .map-toolbar{margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
 .map-toolbar button{background:#f2efed;color:#403730;border:1px solid #e1dcd7;font-size:13px;padding:8px 14px}
 #mapContainer{height:320px;border-radius:18px;overflow:hidden;border:1px solid #e8e4e0;background:#f2f0ee}
+.map-diagnostic{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;padding:9px 12px;background:#fdf1ee;border:1px solid #f0c9bd;border-radius:10px;font-size:12px;color:#8a3b28}
+.map-diagnostic.hidden{display:none}
+.map-diagnostic #mapDiagnosticText{flex:1;min-width:120px;line-height:1.5}
+.map-diagnostic #mapDiagnosticRetry{font-size:12px;padding:6px 10px;background:#875020;color:#fff;border-radius:8px;white-space:nowrap}
+.map-section.map-fullscreen .map-diagnostic{margin-top:4px}
 .map-popup{font-size:14px}
 .map-popup b{display:block;margin:0 0 3px;font-size:16px;color:#202124;font-weight:600;line-height:1.2}
 .map-popup a{color:#1a73e8;font-weight:500;text-decoration:none}
