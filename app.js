@@ -5949,7 +5949,7 @@
     });
   }
 
-  function renderAreaFacilityCard(item, extraButtonHtml = "") {
+  function renderAreaFacilityCard(item, extraButtonHtml = "", detailButtonLabel = "温泉詳細") {
     const { outlineStyle, badgesHtml } = getUsageBadgesAndOutline(item);
     const status = getOpenStatus(item);
     const hoursText = item.is_24_hours
@@ -5977,7 +5977,7 @@
           ${closedDaysText ? `<p>📅 定休日：${escapeHtml(closedDaysText)}</p>` : ""}
           ${priceParts.length ? `<p class="card-price">💰 料金：${escapeHtml(priceParts.join("　"))}</p>` : ""}
         </div>
-        <button type="button" class="area-facility-detail-btn" data-id="${escapeHtml(item.id ?? "")}">温泉詳細</button>
+        <button type="button" class="area-facility-detail-btn" data-id="${escapeHtml(item.id ?? "")}">${escapeHtml(detailButtonLabel)}</button>
         ${extraButtonHtml}
       </div>
     `;
@@ -8622,7 +8622,7 @@
     }
 
     carousel.innerHTML = items.length
-      ? items.map((item) => renderAreaFacilityCard(item)).join("")
+      ? items.map((item) => renderAreaFacilityCard(item, "", "温泉詳細を見る")).join("")
       : `<p class="map-card-carousel-empty">この範囲に表示できる施設がありません。地図を動かしてみてください。</p>`;
 
     carousel.querySelectorAll(".area-facility-detail-btn").forEach((btn) => {
