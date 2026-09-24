@@ -41,10 +41,14 @@ body.map-fullscreen-active{overflow:hidden}
 .map-legend-toggle{display:block;margin-top:8px;font-size:12px;padding:7px 12px;background:#f2efed;color:#403730;border:1px solid #e1dcd7}
 .map-card-carousel{display:none;gap:12px;overflow-x:auto;padding:12px 2px 4px;margin-top:10px;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}
 .map-card-carousel.hidden{display:none}
-.map-card-carousel .area-facility-card{flex:0 0 auto;width:250px;height:115px;display:flex;flex-direction:column;align-items:stretch;overflow:hidden;scroll-snap-align:start;padding-bottom:6px}
+.map-card-carousel .area-facility-card{flex:0 0 auto;width:250px;height:172px;display:flex;flex-direction:column;align-items:stretch;overflow:hidden;scroll-snap-align:start;padding-bottom:6px}
 .map-card-carousel .area-facility-card-body{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .map-card-carousel .area-facility-card-body h3{font-size:13px;white-space:normal;overflow:visible;text-overflow:clip}
 .map-card-carousel .area-facility-card-body p{white-space:normal;overflow:visible;text-overflow:clip;font-size:12px}
+.map-card-carousel .area-facility-card-body .card-badges{flex-wrap:nowrap;gap:5px;margin:6px 0}
+.map-card-carousel .area-facility-card-body .detail-note-tight{margin:0;line-height:1.3;min-width:0}
+.map-card-carousel .area-facility-card-body .type-badge{padding:3px 8px;font-size:11px;white-space:nowrap}
+.map-card-carousel .area-facility-card-body .status-badge{padding:3px 8px;font-size:11px;white-space:nowrap}
 .map-card-carousel .area-facility-detail-btn{width:100%;flex:0 0 auto;margin-top:6px}
 .map-card-carousel-empty{color:#837d77;font-size:14px;padding:10px 4px}
 .half-fill-heading{display:inline-block;padding:1px 8px;background-repeat:no-repeat;border-radius:4px}

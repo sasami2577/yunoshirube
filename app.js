@@ -8193,7 +8193,11 @@
       query += `node["name"]["junction"="yes"](${s},${w},${n},${e});`;
     }
     // 駅（station/halt）
+    // ※ JR・新幹線の主要駅は「点」ではなく「駅舎の範囲（way）」として登録されていることが多いため、
+    // 　nodeだけでなくwayも取得し、範囲の中心点を駅の位置として扱う（これをしないとJR・新幹線の
+    // 　大きな駅の名前が表示されないことがある）
     query += `node["railway"~"^(station|halt)$"]["name"](${s},${w},${n},${e});`;
+    query += `way["railway"~"^(station|halt)$"]["name"](${s},${w},${n},${e});`;
     // 鉄道路線（駅構内の側線・操車場・引込み線等は除外し、本線のみをシンプルな一本線で表示する）
     query += `way["railway"~"^(rail|subway|tram|light_rail|monorail|funicular|narrow_gauge)$"][!"service"](${s},${w},${n},${e});`;
     const fetchFacilities = zoom >= 14; // 種類が多く重くなりやすいので、病院よりさらにズームインしてから取得する
@@ -8248,6 +8252,27 @@
               type: "Feature",
               id,
               geometry: { type: "Point", coordinates: [el.lon, el.lat] },
+              properties: { category, name: formatStationName(el.tags.name, category) }
+            });
+            stationsChanged = true;
+          }
+        } else if (
+          el.type === "way" &&
+          el.tags?.name &&
+          (el.tags.railway === "station" || el.tags.railway === "halt") &&
+          Array.isArray(el.geometry) &&
+          el.geometry.length
+        ) {
+          // 駅舎が範囲（way）として登録されている場合、その中心点を駅の位置とする
+          const id = "sw" + el.id;
+          if (!overpassStationFeatures.has(id)) {
+            const category = classifyRailCategory(el.tags);
+            const lon = el.geometry.reduce((sum, pt) => sum + pt.lon, 0) / el.geometry.length;
+            const lat = el.geometry.reduce((sum, pt) => sum + pt.lat, 0) / el.geometry.length;
+            overpassStationFeatures.set(id, {
+              type: "Feature",
+              id,
+              geometry: { type: "Point", coordinates: [lon, lat] },
               properties: { category, name: formatStationName(el.tags.name, category) }
             });
             stationsChanged = true;
@@ -8597,6 +8622,31 @@
   // ------------------------------------------------------------------
   let mapFullscreenActive = false;
   let mapCarouselSortMode = "bounds"; // "bounds"＝現在表示中の範囲の施設／"distance"＝現在地から近い順
+  let mapFullscreenScrollY = 0;
+
+  // 全画面マップ表示中、裏側のホーム画面がスクロールに誤反応しないよう、
+  // 背後のビューを完全に非表示にしつつbody自体もスクロール不可にロックする
+  function lockBackgroundForMapFullscreen() {
+    mapFullscreenScrollY = window.scrollY || window.pageYOffset || 0;
+    $("heroSection")?.classList.add("hidden");
+    $("listView")?.classList.add("hidden");
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${mapFullscreenScrollY}px`;
+    document.body.style.left = "0";
+    document.body.style.right = "0";
+    document.body.style.width = "100%";
+  }
+
+  function unlockBackgroundForMapFullscreen() {
+    document.body.style.position = "";
+    document.body.style.top = "";
+    document.body.style.left = "";
+    document.body.style.right = "";
+    document.body.style.width = "";
+    $("heroSection")?.classList.remove("hidden");
+    $("listView")?.classList.remove("hidden");
+    window.scrollTo(0, mapFullscreenScrollY);
+  }
 
   function getVisibleMapItems() {
     if (!leafletMap) return [];
@@ -8657,6 +8707,13 @@
     $("mapSection")?.classList.toggle("map-fullscreen", active);
     document.body.classList.toggle("map-fullscreen-active", active);
     $("mapCardCarousel")?.classList.toggle("hidden", !active);
+
+    // 背後のホーム画面を完全に切り離して、スクロール時の誤反応を防ぐ
+    if (active) {
+      lockBackgroundForMapFullscreen();
+    } else {
+      unlockBackgroundForMapFullscreen();
+    }
 
     const btn = $("mapExpandButton");
     if (btn) btn.textContent = active ? "✕ 地図を閉じる" : "🗺 地図を拡大して探す";
