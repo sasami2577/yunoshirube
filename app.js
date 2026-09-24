@@ -8026,6 +8026,46 @@
   const overpassStationFeatures = new Map(); // id -> GeoJSON Feature
   const overpassFacilityFeatures = new Map(); // id -> GeoJSON Feature
 
+  // 駅・鉄道路線などの取得済みデータをブラウザ内（localStorage）に保存しておき、
+  // ページを再読み込みしても、一度読み込んだ範囲はゼロからやり直さずに済むようにする
+  const OVERPASS_CACHE_STORAGE_KEY = "yunoshirube_map_overpass_cache_v2";
+
+  function loadOverpassCacheFromStorage() {
+    try {
+      const raw = localStorage.getItem(OVERPASS_CACHE_STORAGE_KEY);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      (data.hospitals || []).forEach((f) => overpassHospitalFeatures.set(f.id, f));
+      (data.stations || []).forEach((f) => overpassStationFeatures.set(f.id, f));
+      (data.intersections || []).forEach((f) => overpassIntersectionFeatures.set(f.id, f));
+      (data.facilities || []).forEach((f) => overpassFacilityFeatures.set(f.id, f));
+      (data.rail || []).forEach((f) => overpassRailFeatures.set(f.id, f));
+      (data.fetchedCells || []).forEach((c) => overpassFetchedCells.add(c));
+    } catch (err) {
+      console.warn("地図データのキャッシュ読み込みに失敗しました:", err);
+    }
+  }
+
+  function saveOverpassCacheToStorage() {
+    try {
+      const data = {
+        hospitals: Array.from(overpassHospitalFeatures.values()),
+        stations: Array.from(overpassStationFeatures.values()),
+        intersections: Array.from(overpassIntersectionFeatures.values()),
+        facilities: Array.from(overpassFacilityFeatures.values()),
+        rail: Array.from(overpassRailFeatures.values()),
+        fetchedCells: Array.from(overpassFetchedCells)
+      };
+      localStorage.setItem(OVERPASS_CACHE_STORAGE_KEY, JSON.stringify(data));
+    } catch (err) {
+      // 保存容量オーバー等は無視する（次にアクセスした際は通常通りAPIから再取得される）
+      console.warn("地図データのキャッシュ保存に失敗しました:", err);
+    }
+  }
+
+  // ページ読み込み時に、前回までに取得済みのデータがあれば先に復元しておく
+  loadOverpassCacheFromStorage();
+
   // 交差点名バッジ用の角丸アイコンをその場で生成する（画像ファイルのアップロード不要）
   function ensureBadgeIcon(mlMap, id, color) {
     if (mlMap.hasImage(id)) return;
@@ -8054,7 +8094,10 @@
   // 鉄道の種別（JR線／新幹線／私鉄／地下鉄／路面電車／その他）をOSMタグから推定する
   // ※ 駅構内・操車場の線路などはoperator（運行会社）タグが付いていないことが多く、
   // 　その場合はJR線として扱う（無タグ路線は私鉄よりJR線であるケースの方が圧倒的に多いため）
-  function classifyRailCategory(tags) {
+  // unknownDefault: operator/networkタグが無い場合にどちらへ倒すか。
+  // 　鉄道路線（線路のway）は、JR駅構内の側線・引込み線などにタグが付いていないことが多いため "jr" を既定にする。
+  // 　一方、駅（station）は逆にタグ無しの私鉄・第三セクター駅が多いため "private" を既定にする。
+  function classifyRailCategory(tags, unknownDefault = "jr") {
     tags = tags || {};
     const operator = tags.operator || "";
     const network = tags.network || "";
@@ -8067,9 +8110,8 @@
     const jrPattern = /(JR|Ｊ Ｒ|Ｊ・Ｒ)|東日本旅客鉄道|西日本旅客鉄道|東海旅客鉄道|九州旅客鉄道|北海道旅客鉄道|四国旅客鉄道|日本貨物鉄道/i;
     if (jrPattern.test(operator) || jrPattern.test(network)) return "jr";
 
-    // 明確に私鉄・第三セクターと分かる場合のみ「私鉄」に分類し、
-    // operatorタグが無い（駅構内の側線・引込み線など）場合はJR線としてまとめる
-    if (!operator) return "jr";
+    // 明確に私鉄・第三セクターと分かる場合のみ「私鉄」に分類する
+    if (!operator && !network) return unknownDefault;
     return "private";
   }
 
@@ -8166,6 +8208,12 @@
     ["custom_hospitals", "custom_rail", "custom_intersections", "custom_stations", "custom_facilities"].forEach((id) => {
       if (mlMap.getSource(id)) mlMap.getSource(id).setData(empty);
     });
+
+    try {
+      localStorage.removeItem(OVERPASS_CACHE_STORAGE_KEY);
+    } catch (err) {
+      // 何もしない
+    }
   }
 
   async function fetchOverpassOverlay(mlMap) {
@@ -8252,7 +8300,8 @@
         } else if (el.type === "node" && el.tags?.name && (el.tags.railway === "station" || el.tags.railway === "halt")) {
           const id = "s" + el.id;
           if (!overpassStationFeatures.has(id)) {
-            const category = classifyRailCategory(el.tags);
+            // 駅はタグ無しの場合「私鉄・第三セクター」を既定にする（路線wayとは既定を逆にしている）
+            const category = classifyRailCategory(el.tags, "private");
             overpassStationFeatures.set(id, {
               type: "Feature",
               id,
@@ -8271,7 +8320,7 @@
           // 駅舎が範囲（way）として登録されている場合、その中心点を駅の位置とする
           const id = "sw" + el.id;
           if (!overpassStationFeatures.has(id)) {
-            const category = classifyRailCategory(el.tags);
+            const category = classifyRailCategory(el.tags, "private");
             const lon = el.geometry.reduce((sum, pt) => sum + pt.lon, 0) / el.geometry.length;
             const lat = el.geometry.reduce((sum, pt) => sum + pt.lat, 0) / el.geometry.length;
             overpassStationFeatures.set(id, {
@@ -8354,6 +8403,11 @@
           features: Array.from(overpassFacilityFeatures.values())
         });
       }
+
+      // 新しいデータが増えた場合は、次回の読み込みのためにブラウザ内へ保存しておく
+      if (hospitalsChanged || railChanged || intersectionsChanged || stationsChanged || facilitiesChanged) {
+        saveOverpassCacheToStorage();
+      }
     } catch (err) {
       console.warn("Overpass APIからのデータ取得に失敗しました:", err);
     } finally {
@@ -8364,11 +8418,28 @@
   function setupOverpassOverlay(mlMap) {
     if (!mlMap || !mlMap.addSource || mlMap.getSource("custom_rail")) return; // 二重登録防止
 
-    mlMap.addSource("custom_rail", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
-    mlMap.addSource("custom_hospitals", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
-    mlMap.addSource("custom_intersections", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
-    mlMap.addSource("custom_stations", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
-    mlMap.addSource("custom_facilities", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+    // ※ loadOverpassCacheFromStorage()で前回分のデータが既に復元されている場合は、
+    // 　それを初期データとしてそのまま使う（再読み込みしても駅名等がすぐに表示される）
+    mlMap.addSource("custom_rail", {
+      type: "geojson",
+      data: { type: "FeatureCollection", features: Array.from(overpassRailFeatures.values()) }
+    });
+    mlMap.addSource("custom_hospitals", {
+      type: "geojson",
+      data: { type: "FeatureCollection", features: Array.from(overpassHospitalFeatures.values()) }
+    });
+    mlMap.addSource("custom_intersections", {
+      type: "geojson",
+      data: { type: "FeatureCollection", features: Array.from(overpassIntersectionFeatures.values()) }
+    });
+    mlMap.addSource("custom_stations", {
+      type: "geojson",
+      data: { type: "FeatureCollection", features: Array.from(overpassStationFeatures.values()) }
+    });
+    mlMap.addSource("custom_facilities", {
+      type: "geojson",
+      data: { type: "FeatureCollection", features: Array.from(overpassFacilityFeatures.values()) }
+    });
 
     mlMap.addLayer({
       id: "custom_rail_line",
@@ -8742,6 +8813,8 @@
     mapFullscreenScrollY = window.scrollY || window.pageYOffset || 0;
     $("heroSection")?.classList.add("hidden");
     $("listView")?.classList.add("hidden");
+    // 全画面表示中はヘッダーも非表示にして、地図をできるだけ大きく表示する
+    $("siteHeader")?.classList.add("hidden");
     document.body.style.position = "fixed";
     document.body.style.top = `-${mapFullscreenScrollY}px`;
     document.body.style.left = "0";
@@ -8757,6 +8830,7 @@
     document.body.style.width = "";
     $("heroSection")?.classList.remove("hidden");
     $("listView")?.classList.remove("hidden");
+    $("siteHeader")?.classList.remove("hidden");
     window.scrollTo(0, mapFullscreenScrollY);
   }
 
@@ -8794,15 +8868,14 @@
     });
   }
 
-  // 全画面表示中、ヘッダー・広告バナーと重ならないよう地図の上下位置を調整する
+  // 全画面表示中はヘッダーを非表示にする（地図をできるだけ大きく表示するため）ので、
+  // 上側のすき間は常に0にし、下側だけ広告バナーの高さに合わせて調整する
   function updateMapFullscreenOffsets() {
     if (!mapFullscreenActive) return;
-    const header = $("siteHeader");
     const adBanner = $("adBannerWrap");
-    const headerH = header ? header.getBoundingClientRect().height : 0;
     const adVisible = document.body.classList.contains("ad-banner-visible") && adBanner && !adBanner.classList.contains("hidden");
     const adH = adVisible ? adBanner.getBoundingClientRect().height : 0;
-    document.documentElement.style.setProperty("--map-fs-top", `${headerH}px`);
+    document.documentElement.style.setProperty("--map-fs-top", "0px");
     document.documentElement.style.setProperty("--map-fs-bottom", `${adH}px`);
     leafletMap?.invalidateSize();
     resizeMapLibreCanvas();
