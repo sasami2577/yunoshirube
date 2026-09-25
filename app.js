@@ -8028,7 +8028,7 @@
 
   // 駅・鉄道路線などの取得済みデータをブラウザ内（localStorage）に保存しておき、
   // ページを再読み込みしても、一度読み込んだ範囲はゼロからやり直さずに済むようにする
-  const OVERPASS_CACHE_STORAGE_KEY = "yunoshirube_map_overpass_cache_v3";
+  const OVERPASS_CACHE_STORAGE_KEY = "yunoshirube_map_overpass_cache_v4";
 
   function loadOverpassCacheFromStorage() {
     try {
@@ -8094,9 +8094,7 @@
   // 鉄道の種別（JR線／新幹線／私鉄／地下鉄／路面電車／その他）をOSMタグから推定する
   // ※ 駅構内・操車場の線路などはoperator（運行会社）タグが付いていないことが多く、
   // 　その場合はJR線として扱う（無タグ路線は私鉄よりJR線であるケースの方が圧倒的に多いため）
-  // unknownDefault: operator/networkタグが無い場合にどちらへ倒すか。
-  // 　鉄道路線（線路のway）は、JR駅構内の側線・引込み線などにタグが付いていないことが多いため "jr" を既定にする。
-  // 　一方、駅（station）は逆にタグ無しの私鉄・第三セクター駅が多いため "private" を既定にする。
+  // unknownDefault: operator/networkタグが全く無い場合にどちらへ倒すか（nullなら判定不能として扱う）。
   function classifyRailCategory(tags, unknownDefault = "jr") {
     tags = tags || {};
     const operator = tags.operator || "";
@@ -8113,6 +8111,53 @@
     // 明確に私鉄・第三セクターと分かる場合のみ「私鉄」に分類する
     if (!operator && !network) return unknownDefault;
     return "private";
+  }
+
+  // 点(lon,lat)から線分(ax,ay)-(bx,by)までのおおよその距離をメートルで求める
+  // （日本国内程度の範囲であれば十分な精度の簡易な平面近似）
+  function pointToSegmentMeters(lon, lat, ax, ay, bx, by) {
+    const latRad = (lat * Math.PI) / 180;
+    const kx = 111320 * Math.cos(latRad);
+    const ky = 110540;
+    const px = lon * kx, py = lat * ky;
+    const axp = ax * kx, ayp = ay * ky;
+    const bxp = bx * kx, byp = by * ky;
+    const dx = bxp - axp, dy = byp - ayp;
+    const lenSq = dx * dx + dy * dy;
+    let t = lenSq === 0 ? 0 : ((px - axp) * dx + (py - ayp) * dy) / lenSq;
+    t = Math.max(0, Math.min(1, t));
+    const cx = axp + t * dx, cy = ayp + t * dy;
+    return Math.hypot(px - cx, py - cy);
+  }
+
+  // 駅にoperator/networkタグが無く種別を判定できない場合、
+  // すぐ近くを通っている鉄道路線（既に判定済みのway）の種別を借りて推定する
+  // （＝同じ線路の上にある駅は同じ色になるようにする）
+  function inferStationCategoryFromNearbyRail(lon, lat, maxDistanceMeters = 120) {
+    let best = null;
+    let bestDist = Infinity;
+    overpassRailFeatures.forEach((feature) => {
+      const coords = feature.geometry?.coordinates;
+      if (!Array.isArray(coords)) return;
+      for (let i = 0; i < coords.length - 1; i++) {
+        const d = pointToSegmentMeters(lon, lat, coords[i][0], coords[i][1], coords[i + 1][0], coords[i + 1][1]);
+        if (d < bestDist) {
+          bestDist = d;
+          best = feature.properties?.category;
+        }
+      }
+    });
+    return bestDist <= maxDistanceMeters ? best : null;
+  }
+
+  // 駅の種別を判定する（タグから判定できない場合は、近くの路線から推定し、
+  // それでも分からない場合のみ最終手段としてfallbackCategoryを使う）
+  function classifyStationCategory(tags, lon, lat, fallbackCategory = "private") {
+    const tagCategory = classifyRailCategory(tags, null);
+    if (tagCategory) return tagCategory;
+    const inferred = inferStationCategoryFromNearbyRail(lon, lat);
+    if (inferred) return inferred;
+    return fallbackCategory;
   }
 
   // 駅名ラベルの表示テキストを作る（JR線は頭に「JR」、末尾に「駅」を付ける。
@@ -8284,6 +8329,29 @@
       let stationsChanged = false;
       let facilitiesChanged = false;
 
+      // ※ 駅の種別を「近くの路線」から推定できるようにするため、
+      // 　先に鉄道路線（way）だけを一通り登録してから、駅などその他の要素を処理する
+      (data.elements || []).forEach((el) => {
+        if (
+          el.type === "way" &&
+          el.tags?.railway &&
+          el.geometry &&
+          el.tags.railway !== "station" &&
+          el.tags.railway !== "halt"
+        ) {
+          const id = "r" + el.id;
+          if (!overpassRailFeatures.has(id)) {
+            overpassRailFeatures.set(id, {
+              type: "Feature",
+              id,
+              geometry: { type: "LineString", coordinates: el.geometry.map((pt) => [pt.lon, pt.lat]) },
+              properties: { category: classifyRailCategory(el.tags) }
+            });
+            railChanged = true;
+          }
+        }
+      });
+
       (data.elements || []).forEach((el) => {
         const extraFacilityCategory = el.type === "node" && el.tags?.name ? classifyExtraFacility(el.tags) : null;
         if (el.type === "node" && el.tags?.amenity === "hospital") {
@@ -8300,8 +8368,8 @@
         } else if (el.type === "node" && el.tags?.name && (el.tags.railway === "station" || el.tags.railway === "halt")) {
           const id = "s" + el.id;
           if (!overpassStationFeatures.has(id)) {
-            // 駅はタグ無しの場合「私鉄・第三セクター」を既定にする（路線wayとは既定を逆にしている）
-            const category = classifyRailCategory(el.tags, "private");
+            // タグから判定できない場合は、近くの路線の種別を借りて推定する
+            const category = classifyStationCategory(el.tags, el.lon, el.lat);
             overpassStationFeatures.set(id, {
               type: "Feature",
               id,
@@ -8320,9 +8388,9 @@
           // 駅舎が範囲（way）として登録されている場合、その中心点を駅の位置とする
           const id = "sw" + el.id;
           if (!overpassStationFeatures.has(id)) {
-            const category = classifyRailCategory(el.tags, "private");
             const lon = el.geometry.reduce((sum, pt) => sum + pt.lon, 0) / el.geometry.length;
             const lat = el.geometry.reduce((sum, pt) => sum + pt.lat, 0) / el.geometry.length;
+            const category = classifyStationCategory(el.tags, lon, lat);
             overpassStationFeatures.set(id, {
               type: "Feature",
               id,
@@ -8358,17 +8426,6 @@
               properties: { category: extraFacilityCategory, name: el.tags.name }
             });
             facilitiesChanged = true;
-          }
-        } else if (el.type === "way" && el.tags?.railway && el.geometry) {
-          const id = "r" + el.id;
-          if (!overpassRailFeatures.has(id)) {
-            overpassRailFeatures.set(id, {
-              type: "Feature",
-              id,
-              geometry: { type: "LineString", coordinates: el.geometry.map((pt) => [pt.lon, pt.lat]) },
-              properties: { category: classifyRailCategory(el.tags) }
-            });
-            railChanged = true;
           }
         }
       });
