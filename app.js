@@ -8028,7 +8028,7 @@
 
   // 駅・鉄道路線などの取得済みデータをブラウザ内（localStorage）に保存しておき、
   // ページを再読み込みしても、一度読み込んだ範囲はゼロからやり直さずに済むようにする
-  const OVERPASS_CACHE_STORAGE_KEY = "yunoshirube_map_overpass_cache_v4";
+  const OVERPASS_CACHE_STORAGE_KEY = "yunoshirube_map_overpass_cache_v5";
 
   function loadOverpassCacheFromStorage() {
     try {
@@ -8296,6 +8296,10 @@
     // 　大きな駅の名前が表示されないことがある）
     query += `node["railway"~"^(station|halt)$"]["name"](${s},${w},${n},${e});`;
     query += `way["railway"~"^(station|halt)$"]["name"](${s},${w},${n},${e});`;
+    // ※ 大きな乗換駅など、railway=station タグが無く public_transport=station タグのみで
+    // 　登録されているケースがあるため、そちらも念のため取得する（重複はOverpass側で自動的にまとめられる）
+    query += `node["public_transport"="station"]["name"](${s},${w},${n},${e});`;
+    query += `way["public_transport"="station"]["name"](${s},${w},${n},${e});`;
     // 鉄道路線（駅構内の側線・操車場・引込み線等は除外し、本線のみをシンプルな一本線で表示する）
     query += `way["railway"~"^(rail|subway|tram|light_rail|monorail|funicular|narrow_gauge)$"][!"service"](${s},${w},${n},${e});`;
     const fetchFacilities = zoom >= 14; // 種類が多く重くなりやすいので、病院よりさらにズームインしてから取得する
@@ -8365,7 +8369,11 @@
             });
             hospitalsChanged = true;
           }
-        } else if (el.type === "node" && el.tags?.name && (el.tags.railway === "station" || el.tags.railway === "halt")) {
+        } else if (
+          el.type === "node" &&
+          el.tags?.name &&
+          (el.tags.railway === "station" || el.tags.railway === "halt" || el.tags.public_transport === "station")
+        ) {
           const id = "s" + el.id;
           if (!overpassStationFeatures.has(id)) {
             // タグから判定できない場合は、近くの路線の種別を借りて推定する
@@ -8381,7 +8389,7 @@
         } else if (
           el.type === "way" &&
           el.tags?.name &&
-          (el.tags.railway === "station" || el.tags.railway === "halt") &&
+          (el.tags.railway === "station" || el.tags.railway === "halt" || el.tags.public_transport === "station") &&
           Array.isArray(el.geometry) &&
           el.geometry.length
         ) {
