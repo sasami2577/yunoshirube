@@ -8028,7 +8028,7 @@
 
   // 駅・鉄道路線などの取得済みデータをブラウザ内（localStorage）に保存しておき、
   // ページを再読み込みしても、一度読み込んだ範囲はゼロからやり直さずに済むようにする
-  const OVERPASS_CACHE_STORAGE_KEY = "yunoshirube_map_overpass_cache_v6";
+  const OVERPASS_CACHE_STORAGE_KEY = "yunoshirube_map_overpass_cache_v7";
 
   function loadOverpassCacheFromStorage() {
     try {
@@ -8175,12 +8175,8 @@
     if (
       (tags.amenity === "place_of_worship" && (tags.religion === "buddhist" || tags.religion === "shinto")) ||
       tags.shop === "mall" ||
-      tags.office === "government" ||
       tags.amenity === "police" ||
-      tags.amenity === "courthouse" ||
       tags.amenity === "fire_station" ||
-      tags.amenity === "clinic" ||
-      tags.amenity === "social_facility" ||
       tags.amenity === "kindergarten" ||
       tags.amenity === "childcare" ||
       tags.amenity === "college" ||
@@ -8188,13 +8184,8 @@
       tags.amenity === "bank" ||
       tags.amenity === "bus_station" ||
       tags.amenity === "marketplace" ||
-      tags.amenity === "waste_transfer_station" ||
-      tags.man_made === "water_works" ||
-      tags.man_made === "wastewater_plant" ||
       tags.leisure === "sports_centre" ||
       tags.tourism === "aquarium" ||
-      tags.power === "plant" ||
-      tags.power === "substation" ||
       tags.waterway === "dam"
     ) {
       return "facility";
@@ -8302,12 +8293,9 @@
       query += `node["amenity"="place_of_worship"]["name"](${s},${w},${n},${e});`;
       query += `node["michinoeki"]["name"](${s},${w},${n},${e});`;
       query += `node["shop"="mall"]["name"](${s},${w},${n},${e});`;
-      query += `node["office"="government"]["name"](${s},${w},${n},${e});`;
-      query += `node["amenity"~"^(police|courthouse|fire_station|clinic|social_facility|kindergarten|childcare|college|community_centre|bank|bus_station|marketplace|waste_transfer_station)$"]["name"](${s},${w},${n},${e});`;
-      query += `node["man_made"~"^(water_works|wastewater_plant)$"]["name"](${s},${w},${n},${e});`;
+      query += `node["amenity"~"^(police|fire_station|kindergarten|childcare|college|community_centre|bank|bus_station|marketplace)$"]["name"](${s},${w},${n},${e});`;
       query += `node["leisure"="sports_centre"]["name"](${s},${w},${n},${e});`;
       query += `node["tourism"="aquarium"]["name"](${s},${w},${n},${e});`;
-      query += `node["power"~"^(plant|substation)$"]["name"](${s},${w},${n},${e});`;
       query += `node["waterway"="dam"]["name"](${s},${w},${n},${e});`;
     }
     query += ");out geom;";
@@ -8546,7 +8534,7 @@
     });
 
     // 交差点名バッジ（通常の交差点＝青、高速道路のIC/JCT＝緑の角丸ラベル）
-    ensureBadgeIcon(mlMap, "intersection_badge", "#3f6fad");
+    ensureBadgeIcon(mlMap, "intersection_badge", "#2962ff");
     ensureBadgeIcon(mlMap, "interchange_badge", "#2e7d32");
     mlMap.addLayer({
       id: "custom_intersection_label",

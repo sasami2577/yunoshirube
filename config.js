@@ -58,7 +58,7 @@ window.ONSEN_ROAD_COLOR_CONFIG = {
   national: "#e53935",     // 国道 → 赤
   prefectural: "#fbc02d",  // 県道 → 黄色
   expressway: "#43a047",   // 高速・有料道路 → 緑
-  majorOther: "#ec407a",   // 主要幹線道路（国道・県道以外） → ピンク
+  majorOther: "#fb8c00",   // 主要幹線道路（国道・県道以外） → オレンジ
   // その他の道路は白のまま（変更なし）
 
   railJr: "#283593",         // JR線 → 藍色
