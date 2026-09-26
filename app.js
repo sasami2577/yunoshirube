@@ -8028,7 +8028,7 @@
 
   // 駅・鉄道路線などの取得済みデータをブラウザ内（localStorage）に保存しておき、
   // ページを再読み込みしても、一度読み込んだ範囲はゼロからやり直さずに済むようにする
-  const OVERPASS_CACHE_STORAGE_KEY = "yunoshirube_map_overpass_cache_v7";
+  const OVERPASS_CACHE_STORAGE_KEY = "yunoshirube_map_overpass_cache_v8";
 
   function loadOverpassCacheFromStorage() {
     try {
@@ -8268,15 +8268,22 @@
 
     const fetchHospitals = zoom >= 13;
     const fetchIntersections = zoom >= 14;
+    // IC/JCT/出入口は高速道路上に点在していて、通常の交差点よりも広域（低いズーム）で見ることが多いため、
+    // 通常の交差点より緩いズームレベルから取得する
+    const fetchInterchanges = zoom >= 11;
     const s = bbox[1], w = bbox[0], n = bbox[3], e = bbox[2];
 
     let query = "[out:json][timeout:25];(";
     if (fetchHospitals) {
       query += `node["amenity"="hospital"](${s},${w},${n},${e});`;
     }
+    if (fetchInterchanges) {
+      // 高速道路のIC（インターチェンジ）・JCT（ジャンクション）・出入口
+      query += `node["name"]["highway"="motorway_junction"](${s},${w},${n},${e});`;
+    }
     if (fetchIntersections) {
-      // 通常の交差点（信号・分岐点）とIC/JCT（高速道路の出入口・分岐）を両方取得する
-      query += `node["name"]["highway"~"^(traffic_signals|motorway_junction)$"](${s},${w},${n},${e});`;
+      // 通常の交差点（信号・分岐点）
+      query += `node["name"]["highway"="traffic_signals"](${s},${w},${n},${e});`;
       query += `node["name"]["junction"="yes"](${s},${w},${n},${e});`;
     }
     // 駅（station/halt）
