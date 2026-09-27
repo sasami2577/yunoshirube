@@ -8026,6 +8026,41 @@
   const overpassStationFeatures = new Map(); // id -> GeoJSON Feature
   const overpassFacilityFeatures = new Map(); // id -> GeoJSON Feature
 
+  // ※ 交差点・IC/JCTは、MapLibre側のGeoJSONソースに正しくデータを渡しても
+  // 　なぜか描画されない現象が続いたため、動作実績のあるLeafletネイティブの
+  // 　マーカー（温泉ピンと同じ仕組み）で直接描画する
+  let overpassIntersectionLeafletLayer = null;
+  function renderIntersectionMarkersOnLeaflet() {
+    if (!leafletMap || !window.L) return;
+    if (!overpassIntersectionLeafletLayer) {
+      overpassIntersectionLeafletLayer = L.layerGroup().addTo(leafletMap);
+    } else {
+      overpassIntersectionLeafletLayer.clearLayers();
+    }
+    overpassIntersectionFeatures.forEach((f) => {
+      const coords = f.geometry?.coordinates;
+      if (!coords) return;
+      const [lon, lat] = coords;
+      const isInterchange = f.properties?.category === "interchange";
+      const marker = L.circleMarker([lat, lon], {
+        radius: 6,
+        color: "#ffffff",
+        weight: 1.5,
+        fillColor: isInterchange ? "#2e7d32" : "#2962ff",
+        fillOpacity: 1
+      });
+      if (f.properties?.name) {
+        marker.bindTooltip(escapeHtml(f.properties.name), {
+          permanent: true,
+          direction: "top",
+          offset: [0, -6],
+          className: isInterchange ? "intersection-tooltip intersection-tooltip-ic" : "intersection-tooltip"
+        });
+      }
+      marker.addTo(overpassIntersectionLeafletLayer);
+    });
+  }
+
   // 駅・鉄道路線などの取得済みデータをブラウザ内（localStorage）に保存しておき、
   // ページを再読み込みしても、一度読み込んだ範囲はゼロからやり直さずに済むようにする
   const OVERPASS_CACHE_STORAGE_KEY = "yunoshirube_map_overpass_cache_v9";
@@ -8239,9 +8274,10 @@
     overpassFacilityFeatures.clear();
 
     const empty = { type: "FeatureCollection", features: [] };
-    ["custom_hospitals", "custom_rail", "custom_intersections", "custom_stations", "custom_facilities"].forEach((id) => {
+    ["custom_hospitals", "custom_rail", "custom_stations", "custom_facilities"].forEach((id) => {
       if (mlMap.getSource(id)) mlMap.getSource(id).setData(empty);
     });
+    overpassIntersectionLeafletLayer?.clearLayers();
 
     try {
       localStorage.removeItem(OVERPASS_CACHE_STORAGE_KEY);
@@ -8442,11 +8478,8 @@
           features: Array.from(overpassRailFeatures.values())
         });
       }
-      if (intersectionsChanged && mlMap.getSource("custom_intersections")) {
-        mlMap.getSource("custom_intersections").setData({
-          type: "FeatureCollection",
-          features: Array.from(overpassIntersectionFeatures.values())
-        });
+      if (intersectionsChanged) {
+        renderIntersectionMarkersOnLeaflet();
       }
       if (stationsChanged && mlMap.getSource("custom_stations")) {
         mlMap.getSource("custom_stations").setData({
@@ -8509,10 +8542,6 @@
       type: "geojson",
       data: { type: "FeatureCollection", features: Array.from(overpassHospitalFeatures.values()) }
     });
-    mlMap.addSource("custom_intersections", {
-      type: "geojson",
-      data: { type: "FeatureCollection", features: Array.from(overpassIntersectionFeatures.values()) }
-    });
     mlMap.addSource("custom_stations", {
       type: "geojson",
       data: { type: "FeatureCollection", features: Array.from(overpassStationFeatures.values()) }
@@ -8571,65 +8600,11 @@
       }
     });
 
-    // 交差点・IC/JCT（通常の交差点＝青、高速道路のIC/JCT＝緑）
-    // ※ 以前は角丸バッジアイコン（icon-text-fit）で表示していたが、実機で全く表示されない
-    // 　現象が続いたため、駅名と同じ「点＋テキスト」方式（動作実績あり）に統一した
-    // ※ 一時的に、とにかく目立つ見た目（大きい赤丸・大きい赤文字）にして、
-    // 　「本当にレイヤー自体が描画されていないのか」を確認できるようにしている
-    mlMap.addLayer({
-      id: "custom_intersection_point",
-      type: "circle",
-      source: "custom_intersections",
-      paint: {
-        "circle-radius": 20,
-        "circle-color": "#ff0000",
-        "circle-opacity": 1,
-        "circle-stroke-color": "#ffffff",
-        "circle-stroke-width": 3
-      }
-    });
-    mlMap.addLayer({
-      id: "custom_intersection_label",
-      type: "symbol",
-      source: "custom_intersections",
-      layout: {
-        "text-field": ["get", "name"],
-        "text-font": ["Noto Sans Bold"],
-        "text-size": 22,
-        "text-offset": [0, 1.6],
-        "text-anchor": "top",
-        // 基本地図側の道路名・地名ラベル等と競合して非表示になるのを防ぐため、常に優先して表示させる
-        "text-allow-overlap": true,
-        "text-ignore-placement": true
-      },
-      paint: {
-        "text-color": "#ff0000",
-        "text-halo-color": "#ffffff",
-        "text-halo-width": 3
-      }
-    });
-
-    // ※ 自前のカウント（Mapオブジェクト）ではなく、MapLibre自体に「実際に何件のデータを
-    // 　持っているか」を直接聞いて、描画エンジン側の認識とズレが無いか確認する
-    // 　（Overpassからの応答に数秒かかることがあるため、1回きりではなく数秒おきに繰り返し確認する）
-    setInterval(() => {
-      try {
-        const hasPointLayer = !!mlMap.getLayer("custom_intersection_point");
-        const hasLabelLayer = !!mlMap.getLayer("custom_intersection_label");
-        const rendered = mlMap.querySourceFeatures
-          ? mlMap.querySourceFeatures("custom_intersections").length
-          : "不明";
-        const srcData = mlMap.getSource("custom_intersections")?.serialize?.()?.data;
-        const rawCount = srcData?.features?.length ?? "不明";
-        mapDebugExtraLine =
-          `[内部確認] pointレイヤー:${hasPointLayer ? "あり" : "無し"} ` +
-          `labelレイヤー:${hasLabelLayer ? "あり" : "無し"} ` +
-          `source内データ数:${rawCount} 描画対象データ数:${rendered}`;
-      } catch (err) {
-        mapDebugExtraLine = "[内部確認エラー] " + (err?.message || String(err));
-      }
-      updateMapDebugCounts();
-    }, 3000);
+    // 交差点・IC/JCTは、MapLibreのGeoJSONソースにデータを渡しても描画エンジン側で
+    // 描画対象0件のまま認識される原因不明の現象が続いたため、MapLibre側では扱わず、
+    // renderIntersectionMarkersOnLeaflet()でLeafletネイティブのマーカーとして描画する
+    // （setupOverpassOverlay呼び出し時点でキャッシュ復元済みのデータがあれば、それを反映する）
+    renderIntersectionMarkersOnLeaflet();
 
     // 駅（点＋駅名ラベル。JR線＝藍色／私鉄＝紫色／新幹線＝青色 ほか）
     mlMap.addLayer({
