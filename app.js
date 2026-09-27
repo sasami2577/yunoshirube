@@ -8479,14 +8479,16 @@
   function updateMapDebugCounts() {
     const el = $("mapDebugCounts");
     if (!el) return;
-    const interchangeCount = Array.from(overpassIntersectionFeatures.values()).filter(
+    const interchanges = Array.from(overpassIntersectionFeatures.values()).filter(
       (f) => f.properties?.category === "interchange"
-    ).length;
-    const intersectionCount = overpassIntersectionFeatures.size - interchangeCount;
+    );
+    const intersectionCount = overpassIntersectionFeatures.size - interchanges.length;
+    const names = interchanges.map((f) => f.properties?.name).filter(Boolean).slice(0, 20).join("、");
     el.textContent =
       `駅:${overpassStationFeatures.size} 鉄道:${overpassRailFeatures.size} ` +
-      `IC/JCT:${interchangeCount} 交差点:${intersectionCount} ` +
-      `病院:${overpassHospitalFeatures.size} 施設:${overpassFacilityFeatures.size}`;
+      `IC/JCT:${interchanges.length} 交差点:${intersectionCount} ` +
+      `病院:${overpassHospitalFeatures.size} 施設:${overpassFacilityFeatures.size}` +
+      (names ? `\nIC/JCT一覧: ${names}` : "");
   }
 
   function setupOverpassOverlay(mlMap) {
@@ -8565,28 +8567,38 @@
       }
     });
 
-    // 交差点名バッジ（通常の交差点＝青、高速道路のIC/JCT＝緑の角丸ラベル）
-    ensureBadgeIcon(mlMap, "intersection_badge", "#2962ff");
-    ensureBadgeIcon(mlMap, "interchange_badge", "#2e7d32");
+    // 交差点・IC/JCT（通常の交差点＝青、高速道路のIC/JCT＝緑）
+    // ※ 以前は角丸バッジアイコン（icon-text-fit）で表示していたが、実機で全く表示されない
+    // 　現象が続いたため、駅名と同じ「点＋テキスト」方式（動作実績あり）に統一した
+    mlMap.addLayer({
+      id: "custom_intersection_point",
+      type: "circle",
+      source: "custom_intersections",
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 11, 3, 18, 8],
+        "circle-color": ["match", ["get", "category"], "interchange", "#2e7d32", "#2962ff"],
+        "circle-stroke-color": "#ffffff",
+        "circle-stroke-width": 1.5
+      }
+    });
     mlMap.addLayer({
       id: "custom_intersection_label",
       type: "symbol",
       source: "custom_intersections",
       layout: {
-        "icon-image": ["match", ["get", "category"], "interchange", "interchange_badge", "intersection_badge"],
-        "icon-text-fit": "both",
-        "icon-text-fit-padding": [2, 5, 2, 5],
         "text-field": ["get", "name"],
         "text-font": ["Noto Sans Bold"],
-        "text-size": ["interpolate", ["linear"], ["zoom"], 11, 10, 15, 11, 19, 14],
-        // ※ 基本地図側の道路名・地名ラベルなどと競合して非表示になってしまうのを防ぐため、
-        // 　station（駅名）と同様、常に優先して表示させる
-        "icon-allow-overlap": true,
+        "text-size": ["interpolate", ["linear"], ["zoom"], 11, 10, 15, 12, 19, 16],
+        "text-offset": [0, 0.6],
+        "text-anchor": "top",
+        // 基本地図側の道路名・地名ラベル等と競合して非表示になるのを防ぐため、常に優先して表示させる
         "text-allow-overlap": true,
         "text-ignore-placement": true
       },
       paint: {
-        "text-color": "#ffffff"
+        "text-color": ["match", ["get", "category"], "interchange", "#2e7d32", "#2962ff"],
+        "text-halo-color": "#ffffff",
+        "text-halo-width": 2
       }
     });
 
