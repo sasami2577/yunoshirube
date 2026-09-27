@@ -8476,6 +8476,7 @@
   // ※ 動作確認用：今ブラウザ内に取得できているデータの件数を地図の下に小さく表示する
   // 　（IC/JCTなど特定の項目だけが表示されない場合に、「そもそも取得できていないのか」
   // 　「取得はできているが画面に描画されていないのか」を切り分けるための一時的な仕組み）
+  let mapDebugExtraLine = ""; // querySourceFeaturesなどの内部確認結果を、後続の更新で消されないよう保持しておく
   function updateMapDebugCounts() {
     const el = $("mapDebugCounts");
     if (!el) return;
@@ -8490,7 +8491,8 @@
       `駅:${overpassStationFeatures.size} 鉄道:${overpassRailFeatures.size} ` +
       `IC/JCT:${interchanges.length} 交差点:${intersectionCount} ` +
       `病院:${overpassHospitalFeatures.size} 施設:${overpassFacilityFeatures.size}` +
-      (names ? `\nIC/JCT一覧: ${names}` : "");
+      (names ? `\nIC/JCT一覧: ${names}` : "") +
+      (mapDebugExtraLine ? `\n${mapDebugExtraLine}` : "");
   }
 
   function setupOverpassOverlay(mlMap) {
@@ -8572,15 +8574,18 @@
     // 交差点・IC/JCT（通常の交差点＝青、高速道路のIC/JCT＝緑）
     // ※ 以前は角丸バッジアイコン（icon-text-fit）で表示していたが、実機で全く表示されない
     // 　現象が続いたため、駅名と同じ「点＋テキスト」方式（動作実績あり）に統一した
+    // ※ 一時的に、とにかく目立つ見た目（大きい赤丸・大きい赤文字）にして、
+    // 　「本当にレイヤー自体が描画されていないのか」を確認できるようにしている
     mlMap.addLayer({
       id: "custom_intersection_point",
       type: "circle",
       source: "custom_intersections",
       paint: {
-        "circle-radius": ["interpolate", ["linear"], ["zoom"], 11, 3, 18, 8],
-        "circle-color": ["match", ["get", "category"], "interchange", "#2e7d32", "#2962ff"],
+        "circle-radius": 20,
+        "circle-color": "#ff0000",
+        "circle-opacity": 1,
         "circle-stroke-color": "#ffffff",
-        "circle-stroke-width": 1.5
+        "circle-stroke-width": 3
       }
     });
     mlMap.addLayer({
@@ -8590,19 +8595,37 @@
       layout: {
         "text-field": ["get", "name"],
         "text-font": ["Noto Sans Bold"],
-        "text-size": ["interpolate", ["linear"], ["zoom"], 11, 10, 15, 12, 19, 16],
-        "text-offset": [0, 0.6],
+        "text-size": 22,
+        "text-offset": [0, 1.6],
         "text-anchor": "top",
         // 基本地図側の道路名・地名ラベル等と競合して非表示になるのを防ぐため、常に優先して表示させる
         "text-allow-overlap": true,
         "text-ignore-placement": true
       },
       paint: {
-        "text-color": ["match", ["get", "category"], "interchange", "#2e7d32", "#2962ff"],
+        "text-color": "#ff0000",
         "text-halo-color": "#ffffff",
-        "text-halo-width": 2
+        "text-halo-width": 3
       }
     });
+
+    // ※ 自前のカウント（Mapオブジェクト）ではなく、MapLibre自体に「実際に何件のデータを
+    // 　持っているか」を直接聞いて、描画エンジン側の認識とズレが無いか確認する
+    setTimeout(() => {
+      try {
+        const hasPointLayer = !!mlMap.getLayer("custom_intersection_point");
+        const hasLabelLayer = !!mlMap.getLayer("custom_intersection_label");
+        const rendered = mlMap.querySourceFeatures
+          ? mlMap.querySourceFeatures("custom_intersections").length
+          : "不明";
+        mapDebugExtraLine =
+          `[内部確認] pointレイヤー:${hasPointLayer ? "あり" : "無し"} ` +
+          `labelレイヤー:${hasLabelLayer ? "あり" : "無し"} 描画対象データ数:${rendered}`;
+      } catch (err) {
+        mapDebugExtraLine = "[内部確認エラー] " + (err?.message || String(err));
+      }
+      updateMapDebugCounts();
+    }, 2500);
 
     // 駅（点＋駅名ラベル。JR線＝藍色／私鉄＝紫色／新幹線＝青色 ほか）
     mlMap.addLayer({
