@@ -8050,10 +8050,6 @@
       return Math.sqrt(dx * dx + dy * dy);
     };
     const MERGE_DISTANCE_METERS = 2200;
-    // ※ ズームレベルが低いうちは名称バッジ同士や他の地図ラベルと重なりやすいため、
-    // 　一定のズームより低い間は小さな点だけを表示し、拡大した時だけ名称バッジを表示する
-    const zoom = leafletMap.getZoom();
-    const showLabel = zoom >= 15;
     const groupsByName = new Map(); // name -> array of groups {lat, lon, category, count}
     overpassIntersectionFeatures.forEach((f) => {
       const coords = f.geometry?.coordinates;
@@ -8074,25 +8070,48 @@
     });
     const groups = [];
     groupsByName.forEach((groupList) => groups.push(...groupList));
-    groups.forEach((g) => {
-      const lat = g.lat;
-      const lon = g.lon;
+
+    // ※ バッジは常に前回同様の角丸表示のまま、「表示する数」を間引くことで重なりを防ぐ。
+    // 　ズームアウトするほど画面上の間隔が狭くなり重なりやすくなるため、
+    // 　各バッジのおおよその画面上の矩形（ピクセル座標）を計算し、
+    // 　既に表示を決めたバッジと重なるものは非表示にする（間引く）。
+    // 　ズームインすれば間隔が広がり、これまで間引かれていたバッジも順次表示されるようになる。
+    const zoom = leafletMap.getZoom();
+    // 優先度：高速道路のIC/JCTを先に、同じ種別内ではまとめた点数（＝より確実・主要な地点）が多い順に表示を確定させる
+    const sortedGroups = groups.slice().sort((a, b) => {
+      const aIc = a.category === "interchange" ? 1 : 0;
+      const bIc = b.category === "interchange" ? 1 : 0;
+      if (aIc !== bIc) return bIc - aIc;
+      return b.count - a.count;
+    });
+    const CHAR_WIDTH_PX = 13; // 日本語1文字あたりの概算幅
+    const PADDING_X_PX = 18;
+    const HEIGHT_PX = 22;
+    const MARGIN_PX = 6; // バッジ同士の最低限のすき間
+    const placedBoxes = [];
+    const visibleGroups = [];
+    sortedGroups.forEach((g) => {
+      const pt = leafletMap.project([g.lat, g.lon], zoom);
+      const halfW = (g.name.length * CHAR_WIDTH_PX + PADDING_X_PX) / 2 + MARGIN_PX;
+      const halfH = HEIGHT_PX / 2 + MARGIN_PX;
+      const box = { x1: pt.x - halfW, y1: pt.y - halfH, x2: pt.x + halfW, y2: pt.y + halfH };
+      const overlaps = placedBoxes.some(
+        (p) => box.x1 < p.x2 && box.x2 > p.x1 && box.y1 < p.y2 && box.y2 > p.y1
+      );
+      if (!overlaps) {
+        placedBoxes.push(box);
+        visibleGroups.push(g);
+      }
+    });
+
+    visibleGroups.forEach((g) => {
       const isInterchange = g.category === "interchange";
-      const dotClass = `intersection-dot${isInterchange ? " intersection-dot-ic" : ""}`;
-      const icon = showLabel
-        ? L.divIcon({
-            className: "intersection-badge-wrap",
-            html:
-              `<div class="${dotClass}"></div>` +
-              `<div class="intersection-badge${isInterchange ? " intersection-badge-ic" : ""}">${escapeHtml(g.name)}</div>`,
-            iconSize: [0, 0]
-          })
-        : L.divIcon({
-            className: "intersection-badge-wrap",
-            html: `<div class="${dotClass}"></div>`,
-            iconSize: [0, 0]
-          });
-      L.marker([lat, lon], { icon, interactive: false }).addTo(overpassIntersectionLeafletLayer);
+      const icon = L.divIcon({
+        className: "intersection-badge-wrap",
+        html: `<div class="intersection-badge${isInterchange ? " intersection-badge-ic" : ""}">${escapeHtml(g.name)}</div>`,
+        iconSize: [0, 0]
+      });
+      L.marker([g.lat, g.lon], { icon, interactive: false }).addTo(overpassIntersectionLeafletLayer);
     });
   }
 
