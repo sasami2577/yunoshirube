@@ -8483,7 +8483,9 @@
       (f) => f.properties?.category === "interchange"
     );
     const intersectionCount = overpassIntersectionFeatures.size - interchanges.length;
-    const names = interchanges.map((f) => f.properties?.name).filter(Boolean).slice(0, 20).join("、");
+    // ※ 前回は20件で打ち切っていたため、件数が多いと目的の地点が一覧に出ないことがあった。
+    // 　重複名をまとめたうえで、件数を気にせず全件表示する
+    const names = Array.from(new Set(interchanges.map((f) => f.properties?.name).filter(Boolean))).join("、");
     el.textContent =
       `駅:${overpassStationFeatures.size} 鉄道:${overpassRailFeatures.size} ` +
       `IC/JCT:${interchanges.length} 交差点:${intersectionCount} ` +
