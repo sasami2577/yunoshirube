@@ -8038,25 +8038,41 @@
       overpassIntersectionLeafletLayer.clearLayers();
     }
     // ※ 上り線・下り線などでOSM上に同じIC/JCT・交差点が複数の点として別々に
-    // 　登録されていることがあるため、「名前」＋「おおよその位置（約1km四方）」で
-    // 　まとめて、1箇所につき1つだけバッジを表示する
-    const groups = new Map();
+    // 　登録されていることがあるが、大きなJCTだとランプ区間が広がっていて
+    // 　単純な格子（グリッド）でまとめると境界をまたいでしまい、まとまらないことがあった。
+    // 　そのため「同じ名前」の点同士の実際の距離を計算し、近い（約900m以内）もの同士を
+    // 　1つのグループとしてまとめる
+    const kx = 111320 * Math.cos((leafletMap.getCenter().lat * Math.PI) / 180);
+    const ky = 110540;
+    const distanceMeters = (lat1, lon1, lat2, lon2) => {
+      const dx = (lon2 - lon1) * kx;
+      const dy = (lat2 - lat1) * ky;
+      return Math.sqrt(dx * dx + dy * dy);
+    };
+    const MERGE_DISTANCE_METERS = 900;
+    const groupsByName = new Map(); // name -> array of groups {lat, lon, category, count}
     overpassIntersectionFeatures.forEach((f) => {
       const coords = f.geometry?.coordinates;
       const name = f.properties?.name;
       if (!coords || !name) return;
       const [lon, lat] = coords;
-      const key = `${name}|${Math.round(lat * 100)}|${Math.round(lon * 100)}`;
-      if (!groups.has(key)) {
-        groups.set(key, { name, category: f.properties?.category, lats: [], lons: [] });
+      if (!groupsByName.has(name)) groupsByName.set(name, []);
+      const groupList = groupsByName.get(name);
+      const nearby = groupList.find((g) => distanceMeters(g.lat, g.lon, lat, lon) <= MERGE_DISTANCE_METERS);
+      if (nearby) {
+        // 既存グループの中心点（平均）を更新する
+        nearby.lat = (nearby.lat * nearby.count + lat) / (nearby.count + 1);
+        nearby.lon = (nearby.lon * nearby.count + lon) / (nearby.count + 1);
+        nearby.count += 1;
+      } else {
+        groupList.push({ name, category: f.properties?.category, lat, lon, count: 1 });
       }
-      const g = groups.get(key);
-      g.lats.push(lat);
-      g.lons.push(lon);
     });
+    const groups = [];
+    groupsByName.forEach((groupList) => groups.push(...groupList));
     groups.forEach((g) => {
-      const lat = g.lats.reduce((sum, v) => sum + v, 0) / g.lats.length;
-      const lon = g.lons.reduce((sum, v) => sum + v, 0) / g.lons.length;
+      const lat = g.lat;
+      const lon = g.lon;
       const isInterchange = g.category === "interchange";
       const icon = L.divIcon({
         className: "intersection-badge-wrap",
