@@ -8795,9 +8795,20 @@
       }
 
       // Protomaps側でエラー（利用上限超過・通信エラー等）が起きた場合の処理
+      let styleErrorShown = false;
       mlMap.on("error", (e) => {
         const detail = e?.error?.message || e?.error || e;
         console.warn("Protomaps地図の読み込みでエラーが発生しました:", detail);
+        // ※ スタイル（レイヤー定義）の不備は例外を投げず、この"error"イベントだけで通知される
+        // 　ことがあるため、addLayer側のtry/catchでは捕まえられないエラーもここで画面に出す
+        // 　（タイル通信エラー等で連発することがあるので、最初の1回だけ表示する）
+        if (!styleErrorShown && detail) {
+          const debugEl = $("mapDebugCounts");
+          if (debugEl) {
+            styleErrorShown = true;
+            debugEl.textContent = "地図スタイルエラー: " + String(detail).slice(0, 200);
+          }
+        }
         if (!protomapsLoaded) {
           protomapsFailed = true;
           protomapsFailReason = detail;
