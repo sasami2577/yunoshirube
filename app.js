@@ -8495,7 +8495,7 @@
 
   function setupOverpassOverlay(mlMap) {
     if (!mlMap || !mlMap.addSource || mlMap.getSource("custom_rail")) return; // 二重登録防止
-
+    try {
     // ※ loadOverpassCacheFromStorage()で前回分のデータが既に復元されている場合は、
     // 　それを初期データとしてそのまま使う（再読み込みしても駅名等がすぐに表示される）
     updateMapDebugCounts();
@@ -8683,6 +8683,13 @@
       clearTimeout(overpassTimer);
       overpassTimer = setTimeout(() => fetchOverpassOverlay(mlMap), 1400);
     });
+    } catch (err) {
+      // ここで例外が起きるとレイヤーが一切追加されない（＝駅や鉄道まで含めて全部非表示になる）ため、
+      // 原因をそのまま画面に出して分かるようにする
+      const el = $("mapDebugCounts");
+      if (el) el.textContent = "レイヤー追加エラー: " + (err && err.message ? err.message : String(err));
+      console.error("setupOverpassOverlay failed:", err);
+    }
   }
 
   // 地図の読み込みに失敗したときに、原因を画面上に表示して再読み込みできるようにする
