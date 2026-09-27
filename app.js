@@ -8037,27 +8037,33 @@
     } else {
       overpassIntersectionLeafletLayer.clearLayers();
     }
+    // ※ 上り線・下り線などでOSM上に同じIC/JCT・交差点が複数の点として別々に
+    // 　登録されていることがあるため、「名前」＋「おおよその位置（約1km四方）」で
+    // 　まとめて、1箇所につき1つだけバッジを表示する
+    const groups = new Map();
     overpassIntersectionFeatures.forEach((f) => {
       const coords = f.geometry?.coordinates;
-      if (!coords) return;
+      const name = f.properties?.name;
+      if (!coords || !name) return;
       const [lon, lat] = coords;
-      const isInterchange = f.properties?.category === "interchange";
-      const marker = L.circleMarker([lat, lon], {
-        radius: 6,
-        color: "#ffffff",
-        weight: 1.5,
-        fillColor: isInterchange ? "#2e7d32" : "#2962ff",
-        fillOpacity: 1
-      });
-      if (f.properties?.name) {
-        marker.bindTooltip(escapeHtml(f.properties.name), {
-          permanent: true,
-          direction: "top",
-          offset: [0, -6],
-          className: isInterchange ? "intersection-tooltip intersection-tooltip-ic" : "intersection-tooltip"
-        });
+      const key = `${name}|${Math.round(lat * 100)}|${Math.round(lon * 100)}`;
+      if (!groups.has(key)) {
+        groups.set(key, { name, category: f.properties?.category, lats: [], lons: [] });
       }
-      marker.addTo(overpassIntersectionLeafletLayer);
+      const g = groups.get(key);
+      g.lats.push(lat);
+      g.lons.push(lon);
+    });
+    groups.forEach((g) => {
+      const lat = g.lats.reduce((sum, v) => sum + v, 0) / g.lats.length;
+      const lon = g.lons.reduce((sum, v) => sum + v, 0) / g.lons.length;
+      const isInterchange = g.category === "interchange";
+      const icon = L.divIcon({
+        className: "intersection-badge-wrap",
+        html: `<div class="intersection-badge${isInterchange ? " intersection-badge-ic" : ""}">${escapeHtml(g.name)}</div>`,
+        iconSize: [0, 0]
+      });
+      L.marker([lat, lon], { icon, interactive: false }).addTo(overpassIntersectionLeafletLayer);
     });
   }
 
