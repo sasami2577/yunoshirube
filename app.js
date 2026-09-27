@@ -8611,21 +8611,25 @@
 
     // ※ 自前のカウント（Mapオブジェクト）ではなく、MapLibre自体に「実際に何件のデータを
     // 　持っているか」を直接聞いて、描画エンジン側の認識とズレが無いか確認する
-    setTimeout(() => {
+    // 　（Overpassからの応答に数秒かかることがあるため、1回きりではなく数秒おきに繰り返し確認する）
+    setInterval(() => {
       try {
         const hasPointLayer = !!mlMap.getLayer("custom_intersection_point");
         const hasLabelLayer = !!mlMap.getLayer("custom_intersection_label");
         const rendered = mlMap.querySourceFeatures
           ? mlMap.querySourceFeatures("custom_intersections").length
           : "不明";
+        const srcData = mlMap.getSource("custom_intersections")?.serialize?.()?.data;
+        const rawCount = srcData?.features?.length ?? "不明";
         mapDebugExtraLine =
           `[内部確認] pointレイヤー:${hasPointLayer ? "あり" : "無し"} ` +
-          `labelレイヤー:${hasLabelLayer ? "あり" : "無し"} 描画対象データ数:${rendered}`;
+          `labelレイヤー:${hasLabelLayer ? "あり" : "無し"} ` +
+          `source内データ数:${rawCount} 描画対象データ数:${rendered}`;
       } catch (err) {
         mapDebugExtraLine = "[内部確認エラー] " + (err?.message || String(err));
       }
       updateMapDebugCounts();
-    }, 2500);
+    }, 3000);
 
     // 駅（点＋駅名ラベル。JR線＝藍色／私鉄＝紫色／新幹線＝青色 ほか）
     mlMap.addLayer({
