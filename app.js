@@ -8028,20 +8028,24 @@
 
   // ※ 交差点・IC/JCTは、MapLibre側のGeoJSONソースに正しくデータを渡しても
   // 　なぜか描画されない現象が続いたため、動作実績のあるLeafletネイティブの
-  // 　マーカー（温泉ピンと同じ仕組み）で直接描画する
-  let overpassIntersectionLeafletLayer = null;
-  function renderIntersectionMarkersOnLeaflet() {
+  // 　マーカー（温泉ピンと同じ仕組み）で直接描画する。
+  // 　駅名・病院名・主要施設名のラベルについても、同じ仕組みを使って
+  // 　「優先度が低いものから間引いて重なりを防ぐ」処理を一括で行う。
+  let overpassLabelLeafletLayer = null;
+
+  // 優先度（数字が小さいほど優先＝重なった時に残る）
+  //  1: 駅／IC・JCT／交差点名
+  //  2: 道の駅／水族館／バスターミナル 等
+  //  3: 大学・専門学校／警察署／消防署／病院
+  //  4: 寺院・神社／モール／公民館・コミュニティセンター／銀行／市場／スポーツセンター／ダム／その他
+  function renderOverlayLabelsOnLeaflet() {
     if (!leafletMap || !window.L) return;
-    if (!overpassIntersectionLeafletLayer) {
-      overpassIntersectionLeafletLayer = L.layerGroup().addTo(leafletMap);
+    if (!overpassLabelLeafletLayer) {
+      overpassLabelLeafletLayer = L.layerGroup().addTo(leafletMap);
     } else {
-      overpassIntersectionLeafletLayer.clearLayers();
+      overpassLabelLeafletLayer.clearLayers();
     }
-    // ※ 上り線・下り線などでOSM上に同じIC/JCT・交差点が複数の点として別々に
-    // 　登録されていることがあるが、大きなJCTだとランプ区間が広がっていて
-    // 　単純な格子（グリッド）でまとめると境界をまたいでしまい、まとまらないことがあった。
-    // 　そのため「同じ名前」の点同士の実際の距離を計算し、近い（約2200m以内）もの同士を
-    // 　1つのグループとしてまとめる（安来ICのように離れたランプ間でも同一とみなす）
+
     const kx = 111320 * Math.cos((leafletMap.getCenter().lat * Math.PI) / 180);
     const ky = 110540;
     const distanceMeters = (lat1, lon1, lat2, lon2) => {
@@ -8049,8 +8053,10 @@
       const dy = (lat2 - lat1) * ky;
       return Math.sqrt(dx * dx + dy * dy);
     };
+
+    // ---- ①-a: IC/JCT・交差点（上り線・下り線などの重複を距離でまとめる） ----
     const MERGE_DISTANCE_METERS = 2200;
-    const groupsByName = new Map(); // name -> array of groups {lat, lon, category, count}
+    const groupsByName = new Map();
     overpassIntersectionFeatures.forEach((f) => {
       const coords = f.geometry?.coordinates;
       const name = f.properties?.name;
@@ -8060,7 +8066,6 @@
       const groupList = groupsByName.get(name);
       const nearby = groupList.find((g) => distanceMeters(g.lat, g.lon, lat, lon) <= MERGE_DISTANCE_METERS);
       if (nearby) {
-        // 既存グループの中心点（平均）を更新する
         nearby.lat = (nearby.lat * nearby.count + lat) / (nearby.count + 1);
         nearby.lon = (nearby.lon * nearby.count + lon) / (nearby.count + 1);
         nearby.count += 1;
@@ -8068,29 +8073,98 @@
         groupList.push({ name, category: f.properties?.category, lat, lon, count: 1 });
       }
     });
-    const groups = [];
-    groupsByName.forEach((groupList) => groups.push(...groupList));
 
-    // ※ バッジは常に前回同様の角丸表示のまま、「表示する数」を間引くことで重なりを防ぐ。
+    // ---- 表示候補を1つのリストにまとめる（tier, subTier, name, lat, lon, render関数） ----
+    const candidates = [];
+
+    groupsByName.forEach((groupList) => {
+      groupList.forEach((g) => {
+        const isInterchange = g.category === "interchange";
+        candidates.push({
+          tier: 1,
+          subTier: isInterchange ? 0 : 1,
+          weight: -g.count, // まとめた点数が多い＝より確実・主要な地点を優先
+          name: g.name,
+          lat: g.lat,
+          lon: g.lon,
+          render: () =>
+            `<div class="intersection-badge${isInterchange ? " intersection-badge-ic" : ""}">${escapeHtml(g.name)}</div>`
+        });
+      });
+    });
+
+    // ---- ①-b: 駅（新幹線＞JR＞私鉄＞路面電車＞地下鉄・その他） ----
+    overpassStationFeatures.forEach((f) => {
+      const coords = f.geometry?.coordinates;
+      const name = f.properties?.name;
+      if (!coords || !name) return;
+      const [lon, lat] = coords;
+      const category = f.properties?.category;
+      candidates.push({
+        tier: 1,
+        subTier: 2 + (STATION_CATEGORY_SUBPRIORITY[category] ?? 4),
+        weight: 0,
+        name,
+        lat,
+        lon,
+        render: () =>
+          `<div class="station-label" style="color:${escapeHtml(railCategoryColor(category) || "#333")}">${escapeHtml(name)}</div>`
+      });
+    });
+
+    // ---- ③: 病院（総合病院・大学病院などの地域中枢病院） ----
+    overpassHospitalFeatures.forEach((f) => {
+      const coords = f.geometry?.coordinates;
+      const name = f.properties?.name;
+      if (!coords || !name) return;
+      const [lon, lat] = coords;
+      candidates.push({
+        tier: 3,
+        subTier: 2,
+        weight: 0,
+        name,
+        lat,
+        lon,
+        render: () => `<div class="facility-label facility-label-hospital">${escapeHtml(name)}</div>`
+      });
+    });
+
+    // ---- ②〜④: 道の駅・寺社・モール・警察・消防・銀行等（OSMタグから判定した施設） ----
+    overpassFacilityFeatures.forEach((f) => {
+      const coords = f.geometry?.coordinates;
+      const name = f.properties?.name;
+      if (!coords || !name) return;
+      const [lon, lat] = coords;
+      const isRoadstation = f.properties?.category === "roadstation";
+      const tier = facilitySubcategoryTier(f.properties?.subcategory);
+      candidates.push({
+        tier,
+        subTier: 5,
+        weight: 0,
+        name,
+        lat,
+        lon,
+        render: () =>
+          `<div class="facility-label${isRoadstation ? " facility-label-roadstation" : ""}">${escapeHtml(name)}</div>`
+      });
+    });
+
+    // ---- 優先度順に並べ、画面上の矩形が重ならないものだけ順次採用していく ----
     // 　ズームアウトするほど画面上の間隔が狭くなり重なりやすくなるため、
-    // 　各バッジのおおよその画面上の矩形（ピクセル座標）を計算し、
-    // 　既に表示を決めたバッジと重なるものは非表示にする（間引く）。
-    // 　ズームインすれば間隔が広がり、これまで間引かれていたバッジも順次表示されるようになる。
+    // 　優先度の低いものから間引かれ、ズームインすれば順次表示されるようになる。
     const zoom = leafletMap.getZoom();
-    // 優先度：高速道路のIC/JCTを先に、同じ種別内ではまとめた点数（＝より確実・主要な地点）が多い順に表示を確定させる
-    const sortedGroups = groups.slice().sort((a, b) => {
-      const aIc = a.category === "interchange" ? 1 : 0;
-      const bIc = b.category === "interchange" ? 1 : 0;
-      if (aIc !== bIc) return bIc - aIc;
-      return b.count - a.count;
+    const sorted = candidates.slice().sort((a, b) => {
+      if (a.tier !== b.tier) return a.tier - b.tier;
+      if (a.subTier !== b.subTier) return a.subTier - b.subTier;
+      return a.weight - b.weight;
     });
     const CHAR_WIDTH_PX = 13; // 日本語1文字あたりの概算幅
     const PADDING_X_PX = 18;
     const HEIGHT_PX = 22;
-    const MARGIN_PX = 6; // バッジ同士の最低限のすき間
+    const MARGIN_PX = 6; // ラベル同士の最低限のすき間
     const placedBoxes = [];
-    const visibleGroups = [];
-    sortedGroups.forEach((g) => {
+    const visible = [];
+    sorted.forEach((g) => {
       const pt = leafletMap.project([g.lat, g.lon], zoom);
       const halfW = (g.name.length * CHAR_WIDTH_PX + PADDING_X_PX) / 2 + MARGIN_PX;
       const halfH = HEIGHT_PX / 2 + MARGIN_PX;
@@ -8100,24 +8174,23 @@
       );
       if (!overlaps) {
         placedBoxes.push(box);
-        visibleGroups.push(g);
+        visible.push(g);
       }
     });
 
-    visibleGroups.forEach((g) => {
-      const isInterchange = g.category === "interchange";
+    visible.forEach((g) => {
       const icon = L.divIcon({
         className: "intersection-badge-wrap",
-        html: `<div class="intersection-badge${isInterchange ? " intersection-badge-ic" : ""}">${escapeHtml(g.name)}</div>`,
+        html: g.render(),
         iconSize: [0, 0]
       });
-      L.marker([g.lat, g.lon], { icon, interactive: false }).addTo(overpassIntersectionLeafletLayer);
+      L.marker([g.lat, g.lon], { icon, interactive: false }).addTo(overpassLabelLeafletLayer);
     });
   }
 
   // 駅・鉄道路線などの取得済みデータをブラウザ内（localStorage）に保存しておき、
   // ページを再読み込みしても、一度読み込んだ範囲はゼロからやり直さずに済むようにする
-  const OVERPASS_CACHE_STORAGE_KEY = "yunoshirube_map_overpass_cache_v9";
+  const OVERPASS_CACHE_STORAGE_KEY = "yunoshirube_map_overpass_cache_v10";
 
   function loadOverpassCacheFromStorage() {
     try {
@@ -8282,6 +8355,45 @@
     return null;
   }
 
+  // classifyExtraFacility()は表示アイコン・色分け用の大まかな分類（"roadstation"/"facility"）だが、
+  // 主要施設ラベルの重なり対策（優先度付け）にはもう少し細かい種別が必要なため、別途判定する
+  function classifyExtraFacilitySubcategory(tags) {
+    if (!tags) return null;
+    if (tags.michinoeki) return "roadstation";
+    if (tags.amenity === "place_of_worship" && (tags.religion === "buddhist" || tags.religion === "shinto")) return "worship";
+    if (tags.shop === "mall") return "mall";
+    if (tags.amenity === "police") return "police";
+    if (tags.amenity === "fire_station") return "fire_station";
+    if (tags.amenity === "kindergarten" || tags.amenity === "childcare") return "childcare";
+    if (tags.amenity === "college") return "college";
+    if (tags.amenity === "community_centre") return "community_centre";
+    if (tags.amenity === "bank") return "bank";
+    if (tags.amenity === "bus_station") return "bus_station";
+    if (tags.amenity === "marketplace") return "marketplace";
+    if (tags.leisure === "sports_centre") return "sports_centre";
+    if (tags.tourism === "aquarium") return "aquarium";
+    if (tags.waterway === "dam") return "dam";
+    return null;
+  }
+
+  // 主要施設ラベルの表示優先度（数字が小さいほど優先＝重なった時に残る）
+  // ①駅・IC/JCT・交差点名　②道の駅・水族館・バスターミナル等　③学校・警察・消防・病院　④その他
+  function facilitySubcategoryTier(subcategory) {
+    switch (subcategory) {
+      case "roadstation":
+      case "aquarium":
+      case "bus_station":
+        return 2;
+      case "college":
+      case "police":
+      case "fire_station":
+        return 3;
+      default:
+        return 4; // worship / mall / community_centre / bank / marketplace / sports_centre / dam / childcare 等
+    }
+  }
+  const STATION_CATEGORY_SUBPRIORITY = { shinkansen: 0, jr: 1, private: 2, tram: 3, subway: 4, other: 4 };
+
   function railCategoryColor(category) {
     const cfg = window.ONSEN_ROAD_COLOR_CONFIG || {};
     const defaults = {
@@ -8331,7 +8443,7 @@
     ["custom_hospitals", "custom_rail", "custom_stations", "custom_facilities"].forEach((id) => {
       if (mlMap.getSource(id)) mlMap.getSource(id).setData(empty);
     });
-    overpassIntersectionLeafletLayer?.clearLayers();
+    overpassLabelLeafletLayer?.clearLayers();
 
     try {
       localStorage.removeItem(OVERPASS_CACHE_STORAGE_KEY);
@@ -8513,7 +8625,11 @@
               type: "Feature",
               id,
               geometry: { type: "Point", coordinates: [el.lon, el.lat] },
-              properties: { category: extraFacilityCategory, name: el.tags.name }
+              properties: {
+                category: extraFacilityCategory,
+                subcategory: classifyExtraFacilitySubcategory(el.tags),
+                name: el.tags.name
+              }
             });
             facilitiesChanged = true;
           }
@@ -8532,9 +8648,6 @@
           features: Array.from(overpassRailFeatures.values())
         });
       }
-      if (intersectionsChanged) {
-        renderIntersectionMarkersOnLeaflet();
-      }
       if (stationsChanged && mlMap.getSource("custom_stations")) {
         mlMap.getSource("custom_stations").setData({
           type: "FeatureCollection",
@@ -8546,6 +8659,9 @@
           type: "FeatureCollection",
           features: Array.from(overpassFacilityFeatures.values())
         });
+      }
+      if (intersectionsChanged || stationsChanged || hospitalsChanged || facilitiesChanged) {
+        renderOverlayLabelsOnLeaflet();
       }
 
       // 新しいデータが増えた場合は、次回の読み込みのためにブラウザ内へ保存しておく
@@ -8611,32 +8727,14 @@
       }
     });
 
-    // 病院名ラベル（強調表示：太字）
-    mlMap.addLayer({
-      id: "custom_hospital_label",
-      type: "symbol",
-      source: "custom_hospitals",
-      layout: {
-        "text-field": ["get", "name"],
-        "text-font": ["Noto Sans Bold"],
-        "text-size": ["interpolate", ["linear"], ["zoom"], 13, 13, 19, 26],
-        "text-offset": [0, 0.6],
-        "text-anchor": "top"
-      },
-      paint: {
-        "text-color": "#c62828",
-        "text-halo-color": "#ffffff",
-        "text-halo-width": 1.5
-      }
-    });
-
-    // 交差点・IC/JCTは、MapLibreのGeoJSONソースにデータを渡しても描画エンジン側で
-    // 描画対象0件のまま認識される原因不明の現象が続いたため、MapLibre側では扱わず、
-    // renderIntersectionMarkersOnLeaflet()でLeafletネイティブのマーカーとして描画する
+    // ※ 病院名・駅名・主要施設名の「文字ラベル」は、他のラベルと重なった時に
+    // 　優先度の低いものから間引く必要があるため、MapLibreの文字レイヤーではなく
+    // 　renderOverlayLabelsOnLeaflet()でLeafletネイティブのマーカーとしてまとめて描画する
+    // 　（丸い点そのものは、これまで通りMapLibre側のレイヤーで描画する）
     // （setupOverpassOverlay呼び出し時点でキャッシュ復元済みのデータがあれば、それを反映する）
-    renderIntersectionMarkersOnLeaflet();
+    renderOverlayLabelsOnLeaflet();
 
-    // 駅（点＋駅名ラベル。JR線＝藍色／私鉄＝紫色／新幹線＝青色 ほか）
+    // 駅（点。名称ラベルはrenderOverlayLabelsOnLeaflet()側で描画。JR線＝藍色／私鉄＝紫色／新幹線＝青色 ほか）
     mlMap.addLayer({
       id: "custom_station_point",
       type: "circle",
@@ -8656,56 +8754,18 @@
         "circle-stroke-width": 1.5
       }
     });
-    mlMap.addLayer({
-      id: "custom_station_label",
-      type: "symbol",
-      source: "custom_stations",
-      layout: {
-        "text-field": ["get", "name"],
-        "text-font": ["Noto Sans Bold"],
-        "text-size": ["interpolate", ["linear"], ["zoom"], 11, 11, 15, 15, 19, 22],
-        "text-offset": [0, 0.6],
-        "text-anchor": "top",
-        // 周辺の他のラベルと重なっても駅名は優先して表示する
-        "text-allow-overlap": true,
-        "text-ignore-placement": true
-      },
-      paint: {
-        "text-color": [
-          "match", ["get", "category"],
-          "jr", railCategoryColor("jr"),
-          "shinkansen", railCategoryColor("shinkansen"),
-          "private", railCategoryColor("private"),
-          "subway", railCategoryColor("subway"),
-          "tram", railCategoryColor("tram"),
-          railCategoryColor("other")
-        ],
-        "text-halo-color": "#ffffff",
-        "text-halo-width": 2
-      }
-    });
-
     // 基本地図データに含まれない施設（寺院・神社・道の駅・官公庁・警察・消防・銀行等）
-    // ※ 道の駅のみ緑色、それ以外は郵便局・学校と同じ紫色で表示する
+    // ※ 道の駅のみ緑色、それ以外は郵便局・学校と同じ紫色で表示する（点のみ。名称はLeaflet側で描画）
     ensureDotIcon(mlMap, "dot_facility", "#6A5B8F");
     ensureDotIcon(mlMap, "dot_roadstation", "#2e7d32");
     mlMap.addLayer({
-      id: "custom_facility_label",
+      id: "custom_facility_point",
       type: "symbol",
       source: "custom_facilities",
       layout: {
         "icon-image": ["match", ["get", "category"], "roadstation", "dot_roadstation", "dot_facility"],
         "icon-size": 0.9,
-        "text-field": ["get", "name"],
-        "text-font": ["Noto Sans Bold"],
-        "text-size": ["interpolate", ["linear"], ["zoom"], 12, 11, 15, 14, 19, 20],
-        "text-offset": [0, 0.6],
-        "text-anchor": "top"
-      },
-      paint: {
-        "text-color": ["match", ["get", "category"], "roadstation", "#2e7d32", "#6A5B8F"],
-        "text-halo-color": "#ffffff",
-        "text-halo-width": 2
+        "icon-allow-overlap": true
       }
     });
 
@@ -8715,10 +8775,10 @@
       clearTimeout(overpassTimer);
       overpassTimer = setTimeout(() => fetchOverpassOverlay(mlMap), 1400);
     });
-    // ズームだけ変化した場合も、交差点・IC/JCTバッジの点⇔名称表示を切り替えるため再描画する
-    if (leafletMap && !leafletMap._intersectionZoomBound) {
-      leafletMap._intersectionZoomBound = true;
-      leafletMap.on("zoomend", () => renderIntersectionMarkersOnLeaflet());
+    // ズームだけ変化した場合も、各種名称ラベルの表示・間引きを再計算する
+    if (leafletMap && !leafletMap._overlayLabelZoomBound) {
+      leafletMap._overlayLabelZoomBound = true;
+      leafletMap.on("zoomend", () => renderOverlayLabelsOnLeaflet());
     }
     } catch (err) {
       // ここで例外が起きるとレイヤーが一切追加されない（＝駅や鉄道まで含めて全部非表示になる）ため、
