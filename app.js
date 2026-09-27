@@ -7969,11 +7969,11 @@
           "dot_facility"
         ],
         "icon-size": 0.9,
-        // 美術館・博物館・動物園・学校・大学の文字ラベルは、重なり対策のため
+        // 美術館・博物館・動物園・学校・大学・公園の文字ラベルは、重なり対策のため
         // renderOverlayLabelsOnLeaflet()側（Leaflet）で描画するので、ここでは非表示にする
         "text-field": [
           "match", ["get", "kind"],
-          ["museum", "zoo", "school", "university"], "",
+          ["museum", "zoo", "school", "university", "park"], "",
           poisLayerDef.layout["text-field"]
         ],
         "text-font": ["Noto Sans Bold"],
@@ -8053,7 +8053,7 @@
     try {
       const poisLayerDef = mlMap.getStyle().layers.find((l) => l.id === "pois");
       if (!poisLayerDef) return results;
-      const kinds = ["museum", "zoo", "school", "university"];
+      const kinds = ["museum", "zoo", "school", "university", "park"];
       const feats = mlMap.querySourceFeatures(poisLayerDef.source, {
         sourceLayer: poisLayerDef["source-layer"],
         filter: ["in", ["get", "kind"], ["literal", kinds]]
@@ -8068,9 +8068,9 @@
         if (seen.has(key)) return;
         seen.add(key);
         const kind = f.properties?.kind;
-        // 美術館・博物館・動物園 → ②、小中高・大学 → ③
-        const tier = kind === "school" || kind === "university" ? 3 : 2;
-        results.push({ name, lat, lon, tier });
+        // 美術館・博物館・動物園 → ②、小中高・大学・公園 → ③
+        const tier = kind === "school" || kind === "university" || kind === "park" ? 3 : 2;
+        results.push({ name, lat, lon, tier, kind });
       });
     } catch (err) {
       console.warn("基本地図データ側の主要施設ラベル取得に失敗しました:", err);
@@ -8090,6 +8090,9 @@
     } else {
       overpassLabelLeafletLayer.clearLayers();
     }
+
+    // ズームレベル10以下（広域表示）まで縮小している間は、主要施設ラベル・名称バッジは一切表示しない
+    if (leafletMap.getZoom() <= 10) return;
 
     const kx = 111320 * Math.cos((leafletMap.getCenter().lat * Math.PI) / 180);
     const ky = 110540;
@@ -8194,8 +8197,9 @@
       });
     });
 
-    // ---- ②③: 美術館・博物館・動物園・小中高等学校・大学（Protomaps基本地図データ由来） ----
+    // ---- ②③: 美術館・博物館・動物園・小中高等学校・大学・公園（Protomaps基本地図データ由来） ----
     getNativePoiLabelCandidates().forEach((n) => {
+      const isPark = n.kind === "park";
       candidates.push({
         tier: n.tier,
         subTier: 5,
@@ -8203,7 +8207,7 @@
         name: n.name,
         lat: n.lat,
         lon: n.lon,
-        render: () => `<div class="facility-label">${escapeHtml(n.name)}</div>`
+        render: () => `<div class="facility-label${isPark ? " facility-label-park" : ""}">${escapeHtml(n.name)}</div>`
       });
     });
 
