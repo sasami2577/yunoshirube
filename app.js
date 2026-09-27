@@ -8028,7 +8028,7 @@
 
   // 駅・鉄道路線などの取得済みデータをブラウザ内（localStorage）に保存しておき、
   // ページを再読み込みしても、一度読み込んだ範囲はゼロからやり直さずに済むようにする
-  const OVERPASS_CACHE_STORAGE_KEY = "yunoshirube_map_overpass_cache_v8";
+  const OVERPASS_CACHE_STORAGE_KEY = "yunoshirube_map_overpass_cache_v9";
 
   function loadOverpassCacheFromStorage() {
     try {
@@ -8279,7 +8279,9 @@
     }
     if (fetchInterchanges) {
       // 高速道路のIC（インターチェンジ）・JCT（ジャンクション）・出入口
-      query += `node["name"]["highway"="motorway_junction"](${s},${w},${n},${e});`;
+      // ※ 地点によっては「name」タグではなく「name:ja」タグだけに登録されていることがあるため、
+      // 　name の有無で絞り込まず一旦すべて取得し、名前の取り出しはJS側で行う
+      query += `node["highway"="motorway_junction"](${s},${w},${n},${e});`;
     }
     if (fetchIntersections) {
       // 通常の交差点（信号・分岐点）
@@ -8394,18 +8396,23 @@
           }
         } else if (
           el.type === "node" &&
-          el.tags?.name &&
+          (el.tags?.name || (el.tags?.highway === "motorway_junction" && (el.tags?.["name:ja"] || el.tags?.ref))) &&
           (el.tags.highway === "traffic_signals" || el.tags.highway === "motorway_junction" || el.tags.junction === "yes")
         ) {
           const id = "i" + el.id;
           if (!overpassIntersectionFeatures.has(id)) {
             // 高速道路のIC/JCT（motorway_junction）は「interchange」、それ以外の交差点は「intersection」として分類する
             const category = el.tags.highway === "motorway_junction" ? "interchange" : "intersection";
+            // 「name」タグが無い場合は「name:ja」、それも無ければ「◯番」のようにref（IC番号）から仮の名前を作る
+            const label =
+              el.tags.name ||
+              el.tags["name:ja"] ||
+              (el.tags.ref ? `${el.tags.ref}番` : "");
             overpassIntersectionFeatures.set(id, {
               type: "Feature",
               id,
               geometry: { type: "Point", coordinates: [el.lon, el.lat] },
-              properties: { category, name: el.tags.name }
+              properties: { category, name: label }
             });
             intersectionsChanged = true;
           }
