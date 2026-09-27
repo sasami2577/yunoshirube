@@ -8465,6 +8465,7 @@
       if (hospitalsChanged || railChanged || intersectionsChanged || stationsChanged || facilitiesChanged) {
         saveOverpassCacheToStorage();
       }
+      updateMapDebugCounts();
     } catch (err) {
       console.warn("Overpass APIからのデータ取得に失敗しました:", err);
     } finally {
@@ -8472,11 +8473,28 @@
     }
   }
 
+  // ※ 動作確認用：今ブラウザ内に取得できているデータの件数を地図の下に小さく表示する
+  // 　（IC/JCTなど特定の項目だけが表示されない場合に、「そもそも取得できていないのか」
+  // 　「取得はできているが画面に描画されていないのか」を切り分けるための一時的な仕組み）
+  function updateMapDebugCounts() {
+    const el = $("mapDebugCounts");
+    if (!el) return;
+    const interchangeCount = Array.from(overpassIntersectionFeatures.values()).filter(
+      (f) => f.properties?.category === "interchange"
+    ).length;
+    const intersectionCount = overpassIntersectionFeatures.size - interchangeCount;
+    el.textContent =
+      `駅:${overpassStationFeatures.size} 鉄道:${overpassRailFeatures.size} ` +
+      `IC/JCT:${interchangeCount} 交差点:${intersectionCount} ` +
+      `病院:${overpassHospitalFeatures.size} 施設:${overpassFacilityFeatures.size}`;
+  }
+
   function setupOverpassOverlay(mlMap) {
     if (!mlMap || !mlMap.addSource || mlMap.getSource("custom_rail")) return; // 二重登録防止
 
     // ※ loadOverpassCacheFromStorage()で前回分のデータが既に復元されている場合は、
     // 　それを初期データとしてそのまま使う（再読み込みしても駅名等がすぐに表示される）
+    updateMapDebugCounts();
     mlMap.addSource("custom_rail", {
       type: "geojson",
       data: { type: "FeatureCollection", features: Array.from(overpassRailFeatures.values()) }
