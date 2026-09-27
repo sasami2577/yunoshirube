@@ -8040,8 +8040,8 @@
     // ※ 上り線・下り線などでOSM上に同じIC/JCT・交差点が複数の点として別々に
     // 　登録されていることがあるが、大きなJCTだとランプ区間が広がっていて
     // 　単純な格子（グリッド）でまとめると境界をまたいでしまい、まとまらないことがあった。
-    // 　そのため「同じ名前」の点同士の実際の距離を計算し、近い（約900m以内）もの同士を
-    // 　1つのグループとしてまとめる
+    // 　そのため「同じ名前」の点同士の実際の距離を計算し、近い（約2200m以内）もの同士を
+    // 　1つのグループとしてまとめる（安来ICのように離れたランプ間でも同一とみなす）
     const kx = 111320 * Math.cos((leafletMap.getCenter().lat * Math.PI) / 180);
     const ky = 110540;
     const distanceMeters = (lat1, lon1, lat2, lon2) => {
@@ -8049,7 +8049,11 @@
       const dy = (lat2 - lat1) * ky;
       return Math.sqrt(dx * dx + dy * dy);
     };
-    const MERGE_DISTANCE_METERS = 900;
+    const MERGE_DISTANCE_METERS = 2200;
+    // ※ ズームレベルが低いうちは名称バッジ同士や他の地図ラベルと重なりやすいため、
+    // 　一定のズームより低い間は小さな点だけを表示し、拡大した時だけ名称バッジを表示する
+    const zoom = leafletMap.getZoom();
+    const showLabel = zoom >= 15;
     const groupsByName = new Map(); // name -> array of groups {lat, lon, category, count}
     overpassIntersectionFeatures.forEach((f) => {
       const coords = f.geometry?.coordinates;
@@ -8074,11 +8078,20 @@
       const lat = g.lat;
       const lon = g.lon;
       const isInterchange = g.category === "interchange";
-      const icon = L.divIcon({
-        className: "intersection-badge-wrap",
-        html: `<div class="intersection-badge${isInterchange ? " intersection-badge-ic" : ""}">${escapeHtml(g.name)}</div>`,
-        iconSize: [0, 0]
-      });
+      const dotClass = `intersection-dot${isInterchange ? " intersection-dot-ic" : ""}`;
+      const icon = showLabel
+        ? L.divIcon({
+            className: "intersection-badge-wrap",
+            html:
+              `<div class="${dotClass}"></div>` +
+              `<div class="intersection-badge${isInterchange ? " intersection-badge-ic" : ""}">${escapeHtml(g.name)}</div>`,
+            iconSize: [0, 0]
+          })
+        : L.divIcon({
+            className: "intersection-badge-wrap",
+            html: `<div class="${dotClass}"></div>`,
+            iconSize: [0, 0]
+          });
       L.marker([lat, lon], { icon, interactive: false }).addTo(overpassIntersectionLeafletLayer);
     });
   }
@@ -8520,7 +8533,6 @@
       if (hospitalsChanged || railChanged || intersectionsChanged || stationsChanged || facilitiesChanged) {
         saveOverpassCacheToStorage();
       }
-      updateMapDebugCounts();
     } catch (err) {
       console.warn("Overpass APIからのデータ取得に失敗しました:", err);
     } finally {
@@ -8528,34 +8540,11 @@
     }
   }
 
-  // ※ 動作確認用：今ブラウザ内に取得できているデータの件数を地図の下に小さく表示する
-  // 　（IC/JCTなど特定の項目だけが表示されない場合に、「そもそも取得できていないのか」
-  // 　「取得はできているが画面に描画されていないのか」を切り分けるための一時的な仕組み）
-  let mapDebugExtraLine = ""; // querySourceFeaturesなどの内部確認結果を、後続の更新で消されないよう保持しておく
-  function updateMapDebugCounts() {
-    const el = $("mapDebugCounts");
-    if (!el) return;
-    const interchanges = Array.from(overpassIntersectionFeatures.values()).filter(
-      (f) => f.properties?.category === "interchange"
-    );
-    const intersectionCount = overpassIntersectionFeatures.size - interchanges.length;
-    // ※ 前回は20件で打ち切っていたため、件数が多いと目的の地点が一覧に出ないことがあった。
-    // 　重複名をまとめたうえで、件数を気にせず全件表示する
-    const names = Array.from(new Set(interchanges.map((f) => f.properties?.name).filter(Boolean))).join("、");
-    el.textContent =
-      `駅:${overpassStationFeatures.size} 鉄道:${overpassRailFeatures.size} ` +
-      `IC/JCT:${interchanges.length} 交差点:${intersectionCount} ` +
-      `病院:${overpassHospitalFeatures.size} 施設:${overpassFacilityFeatures.size}` +
-      (names ? `\nIC/JCT一覧: ${names}` : "") +
-      (mapDebugExtraLine ? `\n${mapDebugExtraLine}` : "");
-  }
-
   function setupOverpassOverlay(mlMap) {
     if (!mlMap || !mlMap.addSource || mlMap.getSource("custom_rail")) return; // 二重登録防止
     try {
     // ※ loadOverpassCacheFromStorage()で前回分のデータが既に復元されている場合は、
     // 　それを初期データとしてそのまま使う（再読み込みしても駅名等がすぐに表示される）
-    updateMapDebugCounts();
     mlMap.addSource("custom_rail", {
       type: "geojson",
       data: { type: "FeatureCollection", features: Array.from(overpassRailFeatures.values()) }
@@ -8707,11 +8696,14 @@
       clearTimeout(overpassTimer);
       overpassTimer = setTimeout(() => fetchOverpassOverlay(mlMap), 1400);
     });
+    // ズームだけ変化した場合も、交差点・IC/JCTバッジの点⇔名称表示を切り替えるため再描画する
+    if (leafletMap && !leafletMap._intersectionZoomBound) {
+      leafletMap._intersectionZoomBound = true;
+      leafletMap.on("zoomend", () => renderIntersectionMarkersOnLeaflet());
+    }
     } catch (err) {
       // ここで例外が起きるとレイヤーが一切追加されない（＝駅や鉄道まで含めて全部非表示になる）ため、
-      // 原因をそのまま画面に出して分かるようにする
-      const el = $("mapDebugCounts");
-      if (el) el.textContent = "レイヤー追加エラー: " + (err && err.message ? err.message : String(err));
+      // コンソールに詳細を出しておく
       console.error("setupOverpassOverlay failed:", err);
     }
   }
@@ -8819,20 +8811,9 @@
       }
 
       // Protomaps側でエラー（利用上限超過・通信エラー等）が起きた場合の処理
-      let styleErrorShown = false;
       mlMap.on("error", (e) => {
         const detail = e?.error?.message || e?.error || e;
         console.warn("Protomaps地図の読み込みでエラーが発生しました:", detail);
-        // ※ スタイル（レイヤー定義）の不備は例外を投げず、この"error"イベントだけで通知される
-        // 　ことがあるため、addLayer側のtry/catchでは捕まえられないエラーもここで画面に出す
-        // 　（タイル通信エラー等で連発することがあるので、最初の1回だけ表示する）
-        if (!styleErrorShown && detail) {
-          const debugEl = $("mapDebugCounts");
-          if (debugEl) {
-            styleErrorShown = true;
-            debugEl.textContent = "地図スタイルエラー: " + String(detail).slice(0, 200);
-          }
-        }
         if (!protomapsLoaded) {
           protomapsFailed = true;
           protomapsFailReason = detail;
