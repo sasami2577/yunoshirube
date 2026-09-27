@@ -7930,6 +7930,7 @@
   }
 
   function customizeMajorPoiLabels(mlMap) {
+    currentMlMapForLabels = mlMap;
     if (!mlMap || !mlMap.getLayer || !mlMap.getLayer("pois")) return;
 
     const poisLayerDef = mlMap.getStyle().layers.find((l) => l.id === "pois");
@@ -7968,7 +7969,13 @@
           "dot_facility"
         ],
         "icon-size": 0.9,
-        "text-field": poisLayerDef.layout["text-field"],
+        // 美術館・博物館・動物園・学校・大学の文字ラベルは、重なり対策のため
+        // renderOverlayLabelsOnLeaflet()側（Leaflet）で描画するので、ここでは非表示にする
+        "text-field": [
+          "match", ["get", "kind"],
+          ["museum", "zoo", "school", "university"], "",
+          poisLayerDef.layout["text-field"]
+        ],
         "text-font": ["Noto Sans Bold"],
         "text-size": ["interpolate", ["linear"], ["zoom"], 11, 11, 15, 15, 19, 20],
         "text-offset": [0, 0.6],
@@ -8032,11 +8039,49 @@
   // 　駅名・病院名・主要施設名のラベルについても、同じ仕組みを使って
   // 　「優先度が低いものから間引いて重なりを防ぐ」処理を一括で行う。
   let overpassLabelLeafletLayer = null;
+  // 主要施設ラベルの間引き処理では、Protomaps基本地図データ側にしかない
+  // カテゴリ（美術館・博物館・動物園・小中高等学校・大学）も対象にするため、
+  // そのためのmlMap参照を保持しておく（setupOverpassOverlay呼び出し時に設定）
+  let currentMlMapForLabels = null;
+
+  // Protomaps基本地図データ（poisレイヤー）側にしかない「美術館・博物館・動物園・学校・大学」を、
+  // 現在読み込み済みのタイルから取得する（範囲外や未読み込みタイルの分は対象外になる）
+  function getNativePoiLabelCandidates() {
+    const mlMap = currentMlMapForLabels;
+    const results = [];
+    if (!mlMap || !mlMap.getLayer || !mlMap.getLayer("pois") || !mlMap.querySourceFeatures) return results;
+    try {
+      const poisLayerDef = mlMap.getStyle().layers.find((l) => l.id === "pois");
+      if (!poisLayerDef) return results;
+      const kinds = ["museum", "zoo", "school", "university"];
+      const feats = mlMap.querySourceFeatures(poisLayerDef.source, {
+        sourceLayer: poisLayerDef["source-layer"],
+        filter: ["in", ["get", "kind"], ["literal", kinds]]
+      });
+      const seen = new Set();
+      feats.forEach((f) => {
+        const name = f.properties?.name;
+        const geom = f.geometry;
+        if (!name || !geom || geom.type !== "Point") return;
+        const [lon, lat] = geom.coordinates;
+        const key = `${name}|${lon.toFixed(4)}|${lat.toFixed(4)}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        const kind = f.properties?.kind;
+        // 美術館・博物館・動物園 → ②、小中高・大学 → ③
+        const tier = kind === "school" || kind === "university" ? 3 : 2;
+        results.push({ name, lat, lon, tier });
+      });
+    } catch (err) {
+      console.warn("基本地図データ側の主要施設ラベル取得に失敗しました:", err);
+    }
+    return results;
+  }
 
   // 優先度（数字が小さいほど優先＝重なった時に残る）
   //  1: 駅／IC・JCT／交差点名
-  //  2: 道の駅／水族館／バスターミナル 等
-  //  3: 大学・専門学校／警察署／消防署／病院
+  //  2: 道の駅／水族館／バスターミナル／美術館・博物館・動物園 等
+  //  3: 大学・専門学校・小中高等学校／警察署／消防署／病院
   //  4: 寺院・神社／モール／公民館・コミュニティセンター／銀行／市場／スポーツセンター／ダム／その他
   function renderOverlayLabelsOnLeaflet() {
     if (!leafletMap || !window.L) return;
@@ -8146,6 +8191,19 @@
         lon,
         render: () =>
           `<div class="facility-label${isRoadstation ? " facility-label-roadstation" : ""}">${escapeHtml(name)}</div>`
+      });
+    });
+
+    // ---- ②③: 美術館・博物館・動物園・小中高等学校・大学（Protomaps基本地図データ由来） ----
+    getNativePoiLabelCandidates().forEach((n) => {
+      candidates.push({
+        tier: n.tier,
+        subTier: 5,
+        weight: 0,
+        name: n.name,
+        lat: n.lat,
+        lon: n.lon,
+        render: () => `<div class="facility-label">${escapeHtml(n.name)}</div>`
       });
     });
 
@@ -8676,6 +8734,7 @@
   }
 
   function setupOverpassOverlay(mlMap) {
+    currentMlMapForLabels = mlMap;
     if (!mlMap || !mlMap.addSource || mlMap.getSource("custom_rail")) return; // 二重登録防止
     try {
     // ※ loadOverpassCacheFromStorage()で前回分のデータが既に復元されている場合は、
@@ -8780,6 +8839,13 @@
       leafletMap._overlayLabelZoomBound = true;
       leafletMap.on("zoomend", () => renderOverlayLabelsOnLeaflet());
     }
+    // 美術館・博物館・動物園・学校・大学は基本地図データ（タイル）側から取得しているため、
+    // パン操作等で新しいタイルが読み込まれた後にも再計算する（読み込み安定後に1回だけ）
+    let poiIdleTimer = null;
+    mlMap.on("idle", () => {
+      clearTimeout(poiIdleTimer);
+      poiIdleTimer = setTimeout(() => renderOverlayLabelsOnLeaflet(), 400);
+    });
     } catch (err) {
       // ここで例外が起きるとレイヤーが一切追加されない（＝駅や鉄道まで含めて全部非表示になる）ため、
       // コンソールに詳細を出しておく
