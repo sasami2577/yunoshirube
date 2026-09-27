@@ -8553,7 +8553,12 @@
         "icon-text-fit-padding": [2, 5, 2, 5],
         "text-field": ["get", "name"],
         "text-font": ["Noto Sans Bold"],
-        "text-size": ["interpolate", ["linear"], ["zoom"], 15, 8, 19, 11]
+        "text-size": ["interpolate", ["linear"], ["zoom"], 11, 10, 15, 11, 19, 14],
+        // ※ 基本地図側の道路名・地名ラベルなどと競合して非表示になってしまうのを防ぐため、
+        // 　station（駅名）と同様、常に優先して表示させる
+        "icon-allow-overlap": true,
+        "text-allow-overlap": true,
+        "text-ignore-placement": true
       },
       paint: {
         "text-color": "#ffffff"
