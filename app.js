@@ -8226,9 +8226,9 @@
         name,
         lat,
         lon,
-        // ※ 主要施設ラベルと表示様式（文字色・太さ・縁どり）を統一するため、
+        // ※ 主要施設ラベルと表示様式（文字色・太さ・縁どり・文字サイズ）を統一するため、
         // 　駅名も他の施設名と同じ.facility-labelクラスで描画する（種別の色分けは点の色で表現する）
-        render: () => `<div class="facility-label">${escapeHtml(name)}</div>`
+        render: (fontSizePx) => `<div class="facility-label" style="font-size:${fontSizePx}px">${escapeHtml(name)}</div>`
       });
     });
 
@@ -8245,7 +8245,8 @@
         name,
         lat,
         lon,
-        render: () => `<div class="facility-label facility-label-hospital">${escapeHtml(name)}</div>`
+        render: (fontSizePx) =>
+          `<div class="facility-label facility-label-hospital" style="font-size:${fontSizePx}px">${escapeHtml(name)}</div>`
       });
     });
 
@@ -8264,8 +8265,8 @@
         name,
         lat,
         lon,
-        render: () =>
-          `<div class="facility-label${isRoadstation ? " facility-label-roadstation" : ""}">${escapeHtml(name)}</div>`
+        render: (fontSizePx) =>
+          `<div class="facility-label${isRoadstation ? " facility-label-roadstation" : ""}" style="font-size:${fontSizePx}px">${escapeHtml(name)}</div>`
       });
     });
 
@@ -8279,7 +8280,8 @@
         name: n.name,
         lat: n.lat,
         lon: n.lon,
-        render: () => `<div class="facility-label${isPark ? " facility-label-park" : ""}">${escapeHtml(n.name)}</div>`
+        render: (fontSizePx) =>
+          `<div class="facility-label${isPark ? " facility-label-park" : ""}" style="font-size:${fontSizePx}px">${escapeHtml(n.name)}</div>`
       });
     });
 
@@ -8292,10 +8294,13 @@
       if (a.subTier !== b.subTier) return a.subTier - b.subTier;
       return a.weight - b.weight;
     });
-    const CHAR_WIDTH_PX = 13; // 日本語1文字あたりの概算幅
-    const PADDING_X_PX = 18;
-    const HEIGHT_PX = 22;
-    const MARGIN_PX = 6; // ラベル同士の最低限のすき間
+    // 主要施設ラベルの文字サイズ（郵便局等の基本地図データと同じズーム連動サイズ）
+    const fontSizePx = Math.round(interpolateZoomValue(zoom, NATIVE_LABEL_SIZE_STOPS) * 10) / 10;
+    const sizeScale = fontSizePx / 12; // 重なり判定の矩形サイズも文字サイズに合わせて拡大縮小する
+    const CHAR_WIDTH_PX = 13 * sizeScale; // 日本語1文字あたりの概算幅
+    const PADDING_X_PX = 18 * sizeScale;
+    const HEIGHT_PX = 22 * sizeScale;
+    const MARGIN_PX = 6 * sizeScale; // ラベル同士の最低限のすき間
     const placedBoxes = [];
     const visible = [];
     sorted.forEach((g) => {
@@ -8315,7 +8320,7 @@
     visible.forEach((g) => {
       const icon = L.divIcon({
         className: "intersection-badge-wrap",
-        html: g.render(),
+        html: g.render(fontSizePx),
         iconSize: [0, 0]
       });
       L.marker([g.lat, g.lon], { icon, interactive: false }).addTo(overpassLabelLeafletLayer);
@@ -8527,6 +8532,23 @@
     }
   }
   const STATION_CATEGORY_SUBPRIORITY = { shinkansen: 0, jr: 1, private: 2, tram: 3, subway: 4, other: 4 };
+
+  // 主要施設ラベルの文字サイズを、郵便局など基本地図データ側のPOIラベルと同じ大きさ
+  // （ズームレベルに応じて11px〜20pxに拡大縮小するスタイル）に統一するためのヘルパー
+  function interpolateZoomValue(zoom, stops) {
+    if (zoom <= stops[0][0]) return stops[0][1];
+    for (let i = 0; i < stops.length - 1; i++) {
+      const [z0, v0] = stops[i];
+      const [z1, v1] = stops[i + 1];
+      if (zoom <= z1) {
+        const t = (zoom - z0) / (z1 - z0);
+        return v0 + t * (v1 - v0);
+      }
+    }
+    return stops[stops.length - 1][1];
+  }
+  // customizeMajorPoiLabels()のtext-size（zoom 11→11px, 15→15px, 19→20px）と揃えている
+  const NATIVE_LABEL_SIZE_STOPS = [[11, 11], [15, 15], [19, 20]];
 
   function railCategoryColor(category) {
     const cfg = window.ONSEN_ROAD_COLOR_CONFIG || {};
