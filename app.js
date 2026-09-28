@@ -8078,6 +8078,39 @@
     return results;
   }
 
+  // ※ Protomapsの基本地図データには、駅と同じ名前の「地名（places）」ラベルが
+  // 　別途大きな文字で表示されることがあり、駅名（小さめの文字）と二重表示・サイズ違いに見えていた。
+  // 　現在表示している駅名と同じ名前の地名ラベルだけを狙って非表示にする
+  // 　（他の地名・町名ラベルはそのまま表示されるようにする）
+  function suppressNativePlaceLabelsForStations() {
+    const mlMap = currentMlMapForLabels;
+    if (!mlMap || !mlMap.getStyle || !mlMap.setLayoutProperty) return;
+    try {
+      const stationNames = Array.from(
+        new Set(Array.from(overpassStationFeatures.values()).map((f) => f.properties?.name).filter(Boolean))
+      );
+      const layers = mlMap.getStyle().layers || [];
+      if (!mlMap._origPlaceTextField) mlMap._origPlaceTextField = {};
+      layers.forEach((layer) => {
+        if (layer["source-layer"] !== "places" || layer.type !== "symbol") return;
+        if (!layer.layout || !("text-field" in layer.layout)) return;
+        if (!(layer.id in mlMap._origPlaceTextField)) {
+          mlMap._origPlaceTextField[layer.id] = mlMap.getLayoutProperty(layer.id, "text-field");
+        }
+        const original = mlMap._origPlaceTextField[layer.id];
+        if (stationNames.length === 0) {
+          mlMap.setLayoutProperty(layer.id, "text-field", original);
+        } else {
+          mlMap.setLayoutProperty(layer.id, "text-field", [
+            "match", ["get", "name"], stationNames, "", original
+          ]);
+        }
+      });
+    } catch (err) {
+      console.warn("駅名と重複する地名ラベルの非表示化に失敗しました:", err);
+    }
+  }
+
   // 優先度（数字が小さいほど優先＝重なった時に残る）
   //  1: 駅／IC・JCT／交差点名
   //  2: 道の駅／水族館／バスターミナル／美術館・博物館・動物園 等
@@ -8090,6 +8123,8 @@
     } else {
       overpassLabelLeafletLayer.clearLayers();
     }
+
+    suppressNativePlaceLabelsForStations();
 
     // ズームレベル10以下（広域表示）まで縮小している間は、主要施設ラベル・名称バッジは一切表示しない
     if (leafletMap.getZoom() <= 10) return;
