@@ -110,6 +110,8 @@ details.filter-region>.filter-city-slot:not(:empty){margin-top:6px}
 .map-diagnostic #mapDiagnosticText{flex:1;min-width:120px;line-height:1.5}
 .map-diagnostic #mapDiagnosticRetry{font-size:12px;padding:6px 10px;background:#875020;color:#fff;border-radius:8px;white-space:nowrap}
 .map-section.map-fullscreen .map-diagnostic{margin-top:4px}
+.map-debug-counts{margin-top:6px;background:#eef1f6;color:#3a4552;font-size:11px;line-height:1.6;padding:5px 10px;border-radius:8px;white-space:pre-line;word-break:break-word}
+.map-debug-counts:empty{display:none}
 .map-popup{font-size:14px}
 .map-popup b{display:block;margin:0 0 3px;font-size:16px;color:#202124;font-weight:600;line-height:1.2}
 .map-popup a{color:#1a73e8;font-weight:500;text-decoration:none}

@@ -8078,6 +8078,42 @@
     return results;
   }
 
+  // ※※ 動作確認用の一時的な仕組み（原因特定後に削除する）
+  // 　駅名と同じ文字が、実際にどのレイヤーから描画されているのかを地図の下に表示する
+  function debugDumpTextLayers(mlMap) {
+    const run = () => {
+      const el = $("mapLayerDebug");
+      if (!el || !mlMap || !mlMap.queryRenderedFeatures) return;
+      try {
+        const stationNames = Array.from(
+          new Set(Array.from(overpassStationFeatures.values()).map((f) => f.properties?.name).filter(Boolean))
+        );
+        const feats = mlMap.queryRenderedFeatures();
+        const seen = new Set();
+        const lines = [];
+        feats.forEach((f) => {
+          const name = f.properties?.name;
+          if (!name || !stationNames.includes(name)) return;
+          const layerId = f.layer?.id || "?";
+          const srcLayer = f.sourceLayer || f.layer?.["source-layer"] || "?";
+          const key = layerId + "|" + srcLayer + "|" + name;
+          if (seen.has(key)) return;
+          seen.add(key);
+          lines.push(`${name} → layer:${layerId} srcLayer:${srcLayer} kind:${f.properties?.kind || "-"}`);
+        });
+        el.textContent = lines.length ? lines.join("\n") : `(対象レイヤーなし。駅名候補:${stationNames.slice(0, 5).join("、")})`;
+      } catch (err) {
+        el.textContent = "診断エラー: " + (err && err.message ? err.message : String(err));
+      }
+    };
+    mlMap.once("idle", run);
+    let debugTimer = null;
+    mlMap.on("moveend", () => {
+      clearTimeout(debugTimer);
+      debugTimer = setTimeout(run, 800);
+    });
+  }
+
   // ※ Protomapsの基本地図データには、駅と同じ名前の「地名（places）」ラベルが
   // 　別途大きな文字で表示されることがあり、駅名（小さめの文字）と二重表示・サイズ違いに見えていた。
   // 　現在表示している駅名と同じ名前の地名ラベルだけを狙って非表示にする
@@ -8947,6 +8983,7 @@
       // 　主要施設ラベルが道路・鉄道の色より上に重なって表示されるようにしている
       setupOverpassOverlay(mlMap);
       customizeMajorPoiLabels(mlMap);
+      debugDumpTextLayers(mlMap); // ※ 動作確認用の一時的な仕組み。原因特定後に削除する
     };
 
     const mlMap = glLayer.getMaplibreMap?.();
