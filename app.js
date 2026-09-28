@@ -7969,13 +7969,10 @@
           "dot_facility"
         ],
         "icon-size": 0.9,
-        // 美術館・博物館・動物園・学校・大学・公園の文字ラベルは、重なり対策のため
-        // renderOverlayLabelsOnLeaflet()側（Leaflet）で描画するので、ここでは非表示にする
-        "text-field": [
-          "match", ["get", "kind"],
-          ["museum", "zoo", "school", "university", "park"], "",
-          poisLayerDef.layout["text-field"]
-        ],
+        // このレイヤーが対象とする種別（EMPHASIZED_POI_KINDS）は全て
+        // renderOverlayLabelsOnLeaflet()側（Leaflet）で文字ラベルを描画するため、
+        // ここでは点（アイコン）のみを表示し、文字は常に非表示にする
+        "text-field": "",
         "text-font": ["Noto Sans Bold"],
         "text-size": ["interpolate", ["linear"], ["zoom"], 11, 11, 15, 15, 19, 20],
         "text-offset": [0, 0.6],
@@ -8053,12 +8050,21 @@
     try {
       const poisLayerDef = mlMap.getStyle().layers.find((l) => l.id === "pois");
       if (!poisLayerDef) return results;
-      const kinds = ["museum", "zoo", "school", "university", "park"];
+      // ※ EMPHASIZED_POI_KINDS（基本地図データ側で強調表示している種別）を全て対象にする。
+      // 　一部だけをこちらの優先度システムに乗せると、残りが基本地図データ側の独自の
+      // 　重なり回避ロジックのまま動いてしまい、両者が互いを知らずに重なってしまうため。
       const feats = mlMap.querySourceFeatures(poisLayerDef.source, {
         sourceLayer: poisLayerDef["source-layer"],
-        filter: ["in", ["get", "kind"], ["literal", kinds]]
+        filter: ["in", ["get", "kind"], ["literal", EMPHASIZED_POI_KINDS]]
       });
       const seen = new Set();
+      const TIER_BY_KIND = {
+        // ②: 美術館・博物館・動物園・空港・港・スタジアム・役場（市区町村役所）等
+        museum: 2, zoo: 2, aerodrome: 2, ferry_terminal: 2, stadium: 2, townhall: 2,
+        // ③: 小中高等学校・大学・公園
+        school: 3, university: 3, park: 3
+        // 郵便局（post_office）は④（デフォルト）
+      };
       feats.forEach((f) => {
         const name = f.properties?.name;
         const geom = f.geometry;
@@ -8068,8 +8074,7 @@
         if (seen.has(key)) return;
         seen.add(key);
         const kind = f.properties?.kind;
-        // 美術館・博物館・動物園 → ②、小中高・大学・公園 → ③
-        const tier = kind === "school" || kind === "university" || kind === "park" ? 3 : 2;
+        const tier = TIER_BY_KIND[kind] ?? 4;
         results.push({ name, lat, lon, tier, kind });
       });
     } catch (err) {
@@ -8149,9 +8154,9 @@
 
   // 優先度（数字が小さいほど優先＝重なった時に残る）
   //  1: 駅／IC・JCT／交差点名
-  //  2: 道の駅／水族館／バスターミナル／美術館・博物館・動物園 等
-  //  3: 大学・専門学校・小中高等学校／警察署／消防署／病院
-  //  4: 寺院・神社／モール／公民館・コミュニティセンター／銀行／市場／スポーツセンター／ダム／その他
+  //  2: 道の駅／水族館／バスターミナル／美術館・博物館・動物園／空港・港・スタジアム／役場（市区町村役所） 等
+  //  3: 大学・専門学校・小中高等学校・公園／警察署／消防署／病院
+  //  4: 寺院・神社／モール／公民館・コミュニティセンター／銀行／市場／スポーツセンター／ダム／郵便局／その他
   function renderOverlayLabelsOnLeaflet() {
     if (!leafletMap || !window.L) return;
     if (!overpassLabelLeafletLayer) {
@@ -8270,9 +8275,14 @@
       });
     });
 
-    // ---- ②③: 美術館・博物館・動物園・小中高等学校・大学・公園（Protomaps基本地図データ由来） ----
+    // ---- ②③④: 美術館・博物館・動物園・学校・大学・公園・郵便局・役場・空港・港等（Protomaps基本地図データ由来） ----
+    const NATIVE_POI_KIND_CLASS = {
+      park: "facility-label-park",
+      aerodrome: "facility-label-aerodrome",
+      ferry_terminal: "facility-label-port"
+    };
     getNativePoiLabelCandidates().forEach((n) => {
-      const isPark = n.kind === "park";
+      const extraClass = NATIVE_POI_KIND_CLASS[n.kind] || "";
       candidates.push({
         tier: n.tier,
         subTier: 5,
@@ -8281,7 +8291,7 @@
         lat: n.lat,
         lon: n.lon,
         render: (fontSizePx) =>
-          `<div class="facility-label${isPark ? " facility-label-park" : ""}" style="font-size:${fontSizePx}px">${escapeHtml(n.name)}</div>`
+          `<div class="facility-label${extraClass ? " " + extraClass : ""}" style="font-size:${fontSizePx}px">${escapeHtml(n.name)}</div>`
       });
     });
 
