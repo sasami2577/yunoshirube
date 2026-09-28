@@ -8155,8 +8155,9 @@
         name,
         lat,
         lon,
-        render: () =>
-          `<div class="station-label" style="color:${escapeHtml(railCategoryColor(category) || "#333")}">${escapeHtml(name)}</div>`
+        // ※ 主要施設ラベルと表示様式（文字色・太さ・縁どり）を統一するため、
+        // 　駅名も他の施設名と同じ.facility-labelクラスで描画する（種別の色分けは点の色で表現する）
+        render: () => `<div class="facility-label">${escapeHtml(name)}</div>`
       });
     });
 
