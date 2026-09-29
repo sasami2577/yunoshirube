@@ -8153,6 +8153,7 @@
       if (!coords || !name) return;
       const [lon, lat] = coords;
       const category = f.properties?.category;
+      const railColor = railCategoryColor(category);
       candidates.push({
         tier: 1,
         subTier: 2 + (STATION_CATEGORY_SUBPRIORITY[category] ?? 4),
@@ -8160,9 +8161,10 @@
         name,
         lat,
         lon,
-        // ※ 主要施設ラベルと表示様式（文字色・太さ・縁どり・文字サイズ）を統一するため、
-        // 　駅名も他の施設名と同じ.facility-labelクラスで描画する（種別の色分けは点の色で表現する）
-        render: (fontSizePx) => `<div class="facility-label" style="font-size:${fontSizePx}px">${escapeHtml(name)}</div>`
+        // ※ 主要施設ラベルと表示様式（太さ・縁どり・文字サイズ）は統一しつつ、
+        // 　文字色だけは路線種別（JR・新幹線・私鉄・路面電車・地下鉄等）の色に統一する
+        render: (fontSizePx) =>
+          `<div class="facility-label" style="font-size:${fontSizePx}px;color:${railColor}">${escapeHtml(name)}</div>`
       });
     });
 
@@ -8185,13 +8187,20 @@
     });
 
     // ---- ②〜④: 道の駅・寺社・モール・警察・消防・銀行等（OSMタグから判定した施設） ----
+    const FACILITY_SUBCATEGORY_CLASS = {
+      roadstation: "facility-label-roadstation",
+      police: "facility-label-police",
+      fire_station: "facility-label-firestation",
+      college: "facility-label-school"
+    };
     overpassFacilityFeatures.forEach((f) => {
       const coords = f.geometry?.coordinates;
       const name = f.properties?.name;
       if (!coords || !name) return;
       const [lon, lat] = coords;
-      const isRoadstation = f.properties?.category === "roadstation";
-      const tier = facilitySubcategoryTier(f.properties?.subcategory);
+      const subcategory = f.properties?.subcategory;
+      const tier = facilitySubcategoryTier(subcategory);
+      const extraClass = FACILITY_SUBCATEGORY_CLASS[subcategory] || "";
       candidates.push({
         tier,
         subTier: 5,
@@ -8200,7 +8209,7 @@
         lat,
         lon,
         render: (fontSizePx) =>
-          `<div class="facility-label${isRoadstation ? " facility-label-roadstation" : ""}" style="font-size:${fontSizePx}px">${escapeHtml(name)}</div>`
+          `<div class="facility-label${extraClass ? " " + extraClass : ""}" style="font-size:${fontSizePx}px">${escapeHtml(name)}</div>`
       });
     });
 
@@ -8208,7 +8217,11 @@
     const NATIVE_POI_KIND_CLASS = {
       park: "facility-label-park",
       aerodrome: "facility-label-aerodrome",
-      ferry_terminal: "facility-label-port"
+      ferry_terminal: "facility-label-port",
+      post_office: "facility-label-postoffice",
+      townhall: "facility-label-townhall",
+      school: "facility-label-school",
+      university: "facility-label-school"
     };
     getNativePoiLabelCandidates().forEach((n) => {
       const extraClass = NATIVE_POI_KIND_CLASS[n.kind] || "";
