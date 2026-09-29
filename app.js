@@ -7950,6 +7950,9 @@
     ensureDotIcon(mlMap, "dot_facility", "#6A5B8F");
     ensureDotIcon(mlMap, "dot_airport", "#e53935");
     ensureDotIcon(mlMap, "dot_port", "#4fc3f7");
+    ensureDotIcon(mlMap, "dot_postoffice", "#e53935");
+    ensureDotIcon(mlMap, "dot_townhall", "#616161");
+    ensureDotIcon(mlMap, "dot_school", "#ef6c00");
 
     // ※ このレイヤーはあえて一番最後（＝道路・鉄道より上）に追加することで、
     // 　主要施設ラベルが道路・鉄道の色の上に重なって表示されるようにしている
@@ -7966,6 +7969,10 @@
           "park", "dot_park",
           "aerodrome", "dot_airport",
           "ferry_terminal", "dot_port",
+          "post_office", "dot_postoffice",
+          "townhall", "dot_townhall",
+          "school", "dot_school",
+          "university", "dot_school",
           "dot_facility"
         ],
         "icon-size": 0.9,
@@ -8828,9 +8835,10 @@
       id: "custom_hospital_point",
       type: "circle",
       source: "custom_hospitals",
+      minzoom: 11, // ズーム10以下（広域表示）では非表示にして描画負荷を抑える
       paint: {
         "circle-radius": ["interpolate", ["linear"], ["zoom"], 12, 3, 18, 9],
-        "circle-color": "#e53935",
+        "circle-color": "#d81b60",
         "circle-stroke-color": "#ffffff",
         "circle-stroke-width": 1.5
       }
@@ -8848,6 +8856,7 @@
       id: "custom_station_point",
       type: "circle",
       source: "custom_stations",
+      minzoom: 11, // ズーム10以下（広域表示）では非表示にして描画負荷を抑える
       paint: {
         "circle-radius": ["interpolate", ["linear"], ["zoom"], 11, 3, 18, 8],
         "circle-color": [
@@ -8864,15 +8873,26 @@
       }
     });
     // 基本地図データに含まれない施設（寺院・神社・道の駅・官公庁・警察・消防・銀行等）
-    // ※ 道の駅のみ緑色、それ以外は郵便局・学校と同じ紫色で表示する（点のみ。名称はLeaflet側で描画）
+    // ※ ラベルの色分けと統一：道の駅＝青、警察署＝黒、消防署＝赤、専門学校等＝オレンジ、それ以外＝紫（点のみ。名称はLeaflet側で描画）
     ensureDotIcon(mlMap, "dot_facility", "#6A5B8F");
-    ensureDotIcon(mlMap, "dot_roadstation", "#2e7d32");
+    ensureDotIcon(mlMap, "dot_roadstation", "#1565c0");
+    ensureDotIcon(mlMap, "dot_police", "#000000");
+    ensureDotIcon(mlMap, "dot_firestation", "#e53935");
+    ensureDotIcon(mlMap, "dot_school", "#ef6c00");
     mlMap.addLayer({
       id: "custom_facility_point",
       type: "symbol",
       source: "custom_facilities",
+      minzoom: 11, // ズーム10以下（広域表示）では非表示にして描画負荷を抑える
       layout: {
-        "icon-image": ["match", ["get", "category"], "roadstation", "dot_roadstation", "dot_facility"],
+        "icon-image": [
+          "match", ["get", "subcategory"],
+          "roadstation", "dot_roadstation",
+          "police", "dot_police",
+          "fire_station", "dot_firestation",
+          "college", "dot_school",
+          "dot_facility"
+        ],
         "icon-size": 0.9,
         "icon-allow-overlap": true
       }
