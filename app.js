@@ -8295,7 +8295,7 @@
 
   // 駅・鉄道路線などの取得済みデータをブラウザ内（localStorage）に保存しておき、
   // ページを再読み込みしても、一度読み込んだ範囲はゼロからやり直さずに済むようにする
-  const OVERPASS_CACHE_STORAGE_KEY = "yunoshirube_map_overpass_cache_v11";
+  const OVERPASS_CACHE_STORAGE_KEY = "yunoshirube_map_overpass_cache_v12";
 
   function loadOverpassCacheFromStorage() {
     try {
@@ -8633,6 +8633,9 @@
     // IC/JCT/出入口は高速道路上に点在していて、通常の交差点よりも広域（低いズーム）で見ることが多いため、
     // 通常の交差点より緩いズームレベルから取得する
     const fetchInterchanges = zoom >= 11;
+    // 道の駅はTier1（駅・IC/JCTと同じ優先度）に格上げしたため、他の施設（fetchFacilities）より
+    // 先に、広域（低いズーム）から取得しておく必要がある
+    const fetchRoadstations = zoom >= 11;
     const s = bbox[1], w = bbox[0], n = bbox[3], e = bbox[2];
 
     let query = "[out:json][timeout:25];(";
@@ -8653,6 +8656,12 @@
       query += `node["name"]["highway"="traffic_signals"](${s},${w},${n},${e});`;
       query += `node["name"]["junction"="yes"](${s},${w},${n},${e});`;
     }
+    if (fetchRoadstations) {
+      // 道の駅（michinoeki）。施設全体が建物・敷地の範囲（way）として登録されていることも多いため、
+      // nodeだけでなくwayも取得する
+      query += `node["michinoeki"]["name"](${s},${w},${n},${e});`;
+      query += `way["michinoeki"]["name"](${s},${w},${n},${e});`;
+    }
     // 駅（station/halt）
     // ※ JR・新幹線の主要駅は「点」ではなく「駅舎の範囲（way）」として登録されていることが多いため、
     // 　nodeだけでなくwayも取得し、範囲の中心点を駅の位置として扱う（これをしないとJR・新幹線の
@@ -8663,9 +8672,9 @@
     query += `way["railway"~"^(rail|subway|tram|light_rail|monorail|funicular|narrow_gauge)$"][!"service"](${s},${w},${n},${e});`;
     const fetchFacilities = zoom >= 14; // 種類が多く重くなりやすいので、病院よりさらにズームインしてから取得する
     if (fetchFacilities) {
-      // 基本地図データに含まれない施設カテゴリ（寺院・神社・道の駅・官公庁・警察・消防・銀行等）を追加取得する
+      // 基本地図データに含まれない施設カテゴリ（寺院・神社・官公庁・警察・消防・銀行等）を追加取得する
+      // ※ 道の駅（michinoeki）はTier1のためfetchRoadstations側で別途・より広域から取得済み
       query += `node["amenity"="place_of_worship"]["name"](${s},${w},${n},${e});`;
-      query += `node["michinoeki"]["name"](${s},${w},${n},${e});`;
       // 大型スーパー・ショッピングセンター・ショッピングモール・百貨店
       // ※ これらも建物の範囲（way）として登録されていることが多いため、nodeとwayの両方を取得する
       query += `node["shop"~"^(mall|department_store|supermarket)$"]["name"](${s},${w},${n},${e});`;
