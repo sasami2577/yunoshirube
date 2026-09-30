@@ -7948,7 +7948,7 @@
 
     ensureDotIcon(mlMap, "dot_park", "#20834D");
     ensureDotIcon(mlMap, "dot_facility", "#6A5B8F");
-    ensureDotIcon(mlMap, "dot_airport", "#e53935");
+    ensureDotIcon(mlMap, "dot_airport", "#0097a7");
     ensureDotIcon(mlMap, "dot_port", "#4fc3f7");
     ensureDotIcon(mlMap, "dot_postoffice", "#e53935");
     ensureDotIcon(mlMap, "dot_townhall", "#616161");
@@ -7990,7 +7990,7 @@
         "text-color": [
           "match", ["get", "kind"],
           "park", "#20834D",
-          "aerodrome", "#e53935",
+          "aerodrome", "#0097a7",
           "ferry_terminal", "#4fc3f7",
           "#6A5B8F"
         ],
@@ -8092,9 +8092,9 @@
 
   // 優先度（数字が小さいほど優先＝重なった時に残る）
   //  1: 駅／IC・JCT／交差点名
-  //  2: 道の駅／水族館／バスターミナル／美術館・博物館・動物園／空港・港・スタジアム／役場（市区町村役所） 等
-  //  3: 大学・専門学校・小中高等学校・公園／警察署／消防署／病院
-  //  4: 寺院・神社／モール／公民館・コミュニティセンター／銀行／市場／スポーツセンター／ダム／郵便局／その他
+  //  2: 病院／道の駅／水族館／バスターミナル／大型商業施設（モール・百貨店・大型スーパー）／美術館・博物館・動物園／空港・港・スタジアム／役場（市区町村役所） 等
+  //  3: 大学・専門学校・小中高等学校・公園／警察署／消防署
+  //  4: 寺院・神社／公民館・コミュニティセンター／銀行／市場／スポーツセンター／ダム／郵便局／その他
   function renderOverlayLabelsOnLeaflet() {
     if (!leafletMap || !window.L) return;
     if (!overpassLabelLeafletLayer) {
@@ -8175,14 +8175,15 @@
       });
     });
 
-    // ---- ③: 病院（総合病院・大学病院などの地域中枢病院） ----
+    // ---- ②: 病院（総合病院・大学病院などの地域中枢病院） ----
     overpassHospitalFeatures.forEach((f) => {
       const coords = f.geometry?.coordinates;
-      const name = f.properties?.name;
-      if (!coords || !name) return;
+      const rawName = f.properties?.name;
+      if (!coords || !rawName) return;
       const [lon, lat] = coords;
+      const name = simplifyHospitalName(rawName);
       candidates.push({
-        tier: 3,
+        tier: 2,
         subTier: 2,
         weight: 0,
         name,
@@ -8193,19 +8194,22 @@
       });
     });
 
-    // ---- ②〜④: 道の駅・寺社・モール・警察・消防・銀行等（OSMタグから判定した施設） ----
+    // ---- ②〜④: 道の駅・大型商業施設・寺社・警察・消防・銀行等（OSMタグから判定した施設） ----
     const FACILITY_SUBCATEGORY_CLASS = {
       roadstation: "facility-label-roadstation",
       police: "facility-label-police",
       fire_station: "facility-label-firestation",
-      college: "facility-label-school"
+      college: "facility-label-school",
+      shopping: "facility-label-shopping"
     };
     overpassFacilityFeatures.forEach((f) => {
       const coords = f.geometry?.coordinates;
-      const name = f.properties?.name;
-      if (!coords || !name) return;
-      const [lon, lat] = coords;
+      const rawName = f.properties?.name;
+      if (!coords || !rawName) return;
       const subcategory = f.properties?.subcategory;
+      if (subcategory === "childcare") return; // 保育園・幼稚園は主要施設ラベルから除外する（古いキャッシュ対策）
+      const [lon, lat] = coords;
+      const name = subcategory === "college" ? simplifySchoolName(rawName) : rawName;
       const tier = facilitySubcategoryTier(subcategory);
       const extraClass = FACILITY_SUBCATEGORY_CLASS[subcategory] || "";
       candidates.push({
@@ -8232,15 +8236,16 @@
     };
     getNativePoiLabelCandidates().forEach((n) => {
       const extraClass = NATIVE_POI_KIND_CLASS[n.kind] || "";
+      const name = (n.kind === "school" || n.kind === "university") ? simplifySchoolName(n.name) : n.name;
       candidates.push({
         tier: n.tier,
         subTier: 5,
         weight: 0,
-        name: n.name,
+        name,
         lat: n.lat,
         lon: n.lon,
         render: (fontSizePx) =>
-          `<div class="facility-label${extraClass ? " " + extraClass : ""}" style="font-size:${fontSizePx}px">${escapeHtml(n.name)}</div>`
+          `<div class="facility-label${extraClass ? " " + extraClass : ""}" style="font-size:${fontSizePx}px">${escapeHtml(name)}</div>`
       });
     });
 
@@ -8288,7 +8293,7 @@
 
   // 駅・鉄道路線などの取得済みデータをブラウザ内（localStorage）に保存しておき、
   // ページを再読み込みしても、一度読み込んだ範囲はゼロからやり直さずに済むようにする
-  const OVERPASS_CACHE_STORAGE_KEY = "yunoshirube_map_overpass_cache_v10";
+  const OVERPASS_CACHE_STORAGE_KEY = "yunoshirube_map_overpass_cache_v11";
 
   function loadOverpassCacheFromStorage() {
     try {
@@ -8427,18 +8432,55 @@
     return label;
   }
 
+  // 「学校法人◯◯学園」「独立行政法人◯◯機構」「◯◯県立」「◯◯市立」など、
+  // 施設名の前に付く法人格・行政区分の接頭辞を取り除くための共通ヘルパー
+  function stripInstitutionPrefix(name) {
+    if (!name) return name;
+    let s = name;
+    const corpPrefixRe = /^(学校法人|準学校法人|独立行政法人|地方独立行政法人|国立大学法人|公立大学法人|一般財団法人|公益財団法人|社会医療法人|医療法人社団|医療法人財団|医療法人|社会福祉法人|宗教法人)/;
+    while (corpPrefixRe.test(s)) {
+      s = s.replace(corpPrefixRe, "");
+    }
+    // 「◯◯県立」「◯◯市立」のような、都道府県・市区町村名＋「立」の接頭辞を除去する
+    s = s.replace(/^[^立]{1,8}?(都|道|府|県|市|区|町|村)立/, "");
+    return s || name;
+  }
+
+  // 小学校・中学校・高校・大学・専門学校の名称から、上記の接頭辞に加えて
+  // 「◯◯学園◯◯高等学校」のような学園名の重複も除き、「◯◯高校」のような簡潔な表記にする
+  function simplifySchoolName(name) {
+    if (!name) return name;
+    let s = stripInstitutionPrefix(name);
+    // 学園名が本体名の前後で重複している場合（例：明誠学園明誠高等学校）は前半を除去する
+    s = s.replace(/^(.{1,6})学園(?=\1)/, "");
+    // 重複していない「◯◯学園」接頭辞も、後ろに校種が続く場合は除去する
+    s = s.replace(/^.{1,10}?学園(?=.{2,}(?:小学校|中学校|高等学校|高校|大学|専門学校)$)/, "");
+    // 「高等学校」は「高校」という簡潔な表記にする
+    s = s.replace(/高等学校$/, "高校");
+    return s || name;
+  }
+
+  // 病院名から上記の接頭辞を除き、「◯◯大学医学部附属病院」のような長い正式名称は
+  // 「◯◯大学病院」のような簡潔な表記にする
+  function simplifyHospitalName(name) {
+    if (!name) return name;
+    let s = stripInstitutionPrefix(name);
+    s = s.replace(/(大学|医科大学)(?:医学部)?附属病院$/, "$1病院");
+    return s || name;
+  }
+
   // Protomapsの基本地図データ（poisレイヤー）には含まれない施設カテゴリをOSMタグから判定する
-  // （道の駅は緑、それ以外は郵便局・学校と同じ紫色で表示する）
+  // ※ 保育園・幼稚園（kindergarten/childcare）は主要施設ラベルの対象外とする
   function classifyExtraFacility(tags) {
     if (!tags) return null;
     if (tags.michinoeki) return "roadstation"; // 道の駅
     if (
       (tags.amenity === "place_of_worship" && (tags.religion === "buddhist" || tags.religion === "shinto")) ||
       tags.shop === "mall" ||
+      tags.shop === "department_store" ||
+      tags.shop === "supermarket" ||
       tags.amenity === "police" ||
       tags.amenity === "fire_station" ||
-      tags.amenity === "kindergarten" ||
-      tags.amenity === "childcare" ||
       tags.amenity === "college" ||
       tags.amenity === "community_centre" ||
       tags.amenity === "bank" ||
@@ -8459,10 +8501,9 @@
     if (!tags) return null;
     if (tags.michinoeki) return "roadstation";
     if (tags.amenity === "place_of_worship" && (tags.religion === "buddhist" || tags.religion === "shinto")) return "worship";
-    if (tags.shop === "mall") return "mall";
+    if (tags.shop === "mall" || tags.shop === "department_store" || tags.shop === "supermarket") return "shopping";
     if (tags.amenity === "police") return "police";
     if (tags.amenity === "fire_station") return "fire_station";
-    if (tags.amenity === "kindergarten" || tags.amenity === "childcare") return "childcare";
     if (tags.amenity === "college") return "college";
     if (tags.amenity === "community_centre") return "community_centre";
     if (tags.amenity === "bank") return "bank";
@@ -8475,19 +8516,20 @@
   }
 
   // 主要施設ラベルの表示優先度（数字が小さいほど優先＝重なった時に残る）
-  // ①駅・IC/JCT・交差点名　②道の駅・水族館・バスターミナル等　③学校・警察・消防・病院　④その他
+  // ①駅・IC/JCT・交差点名　②病院・道の駅・水族館・バスターミナル・大型商業施設等　③学校・警察・消防　④その他
   function facilitySubcategoryTier(subcategory) {
     switch (subcategory) {
       case "roadstation":
       case "aquarium":
       case "bus_station":
+      case "shopping":
         return 2;
       case "college":
       case "police":
       case "fire_station":
         return 3;
       default:
-        return 4; // worship / mall / community_centre / bank / marketplace / sports_centre / dam / childcare 等
+        return 4; // worship / community_centre / bank / marketplace / sports_centre / dam 等
     }
   }
   const STATION_CATEGORY_SUBPRIORITY = { shinkansen: 0, jr: 1, private: 2, tram: 3, subway: 4, other: 4 };
@@ -8592,7 +8634,10 @@
 
     let query = "[out:json][timeout:25];(";
     if (fetchHospitals) {
+      // 県立中央病院・大学病院などの大きな病院は、点（node）ではなく建物の範囲（way）として
+      // 登録されていることが多いため、nodeだけでなくwayも取得する（そうしないと表示が抜けてしまう）
       query += `node["amenity"="hospital"](${s},${w},${n},${e});`;
+      query += `way["amenity"="hospital"]["name"](${s},${w},${n},${e});`;
     }
     if (fetchInterchanges) {
       // 高速道路のIC（インターチェンジ）・JCT（ジャンクション）・出入口
@@ -8618,8 +8663,11 @@
       // 基本地図データに含まれない施設カテゴリ（寺院・神社・道の駅・官公庁・警察・消防・銀行等）を追加取得する
       query += `node["amenity"="place_of_worship"]["name"](${s},${w},${n},${e});`;
       query += `node["michinoeki"]["name"](${s},${w},${n},${e});`;
-      query += `node["shop"="mall"]["name"](${s},${w},${n},${e});`;
-      query += `node["amenity"~"^(police|fire_station|kindergarten|childcare|college|community_centre|bank|bus_station|marketplace)$"]["name"](${s},${w},${n},${e});`;
+      // 大型スーパー・ショッピングセンター・ショッピングモール・百貨店
+      // ※ これらも建物の範囲（way）として登録されていることが多いため、nodeとwayの両方を取得する
+      query += `node["shop"~"^(mall|department_store|supermarket)$"]["name"](${s},${w},${n},${e});`;
+      query += `way["shop"~"^(mall|department_store|supermarket)$"]["name"](${s},${w},${n},${e});`;
+      query += `node["amenity"~"^(police|fire_station|college|community_centre|bank|bus_station|marketplace)$"]["name"](${s},${w},${n},${e});`;
       query += `node["leisure"="sports_centre"]["name"](${s},${w},${n},${e});`;
       query += `node["tourism"="aquarium"]["name"](${s},${w},${n},${e});`;
       query += `node["waterway"="dam"]["name"](${s},${w},${n},${e});`;
@@ -8665,7 +8713,17 @@
       });
 
       (data.elements || []).forEach((el) => {
-        const extraFacilityCategory = el.type === "node" && el.tags?.name ? classifyExtraFacility(el.tags) : null;
+        // 病院・大型商業施設（モール・百貨店・大型スーパー）は建物の範囲（way）として
+        // 登録されていることも多いため、node・wayどちらの場合も中心点を求めて扱う
+        const isWayWithGeom = el.type === "way" && Array.isArray(el.geometry) && el.geometry.length;
+        let wayLon, wayLat;
+        if (isWayWithGeom) {
+          wayLon = el.geometry.reduce((sum, pt) => sum + pt.lon, 0) / el.geometry.length;
+          wayLat = el.geometry.reduce((sum, pt) => sum + pt.lat, 0) / el.geometry.length;
+        }
+        const extraFacilityCategory =
+          (el.type === "node" || isWayWithGeom) && el.tags?.name ? classifyExtraFacility(el.tags) : null;
+
         if (el.type === "node" && el.tags?.amenity === "hospital") {
           const id = "h" + el.id;
           if (!overpassHospitalFeatures.has(id)) {
@@ -8673,6 +8731,17 @@
               type: "Feature",
               id,
               geometry: { type: "Point", coordinates: [el.lon, el.lat] },
+              properties: { name: el.tags.name || "病院" }
+            });
+            hospitalsChanged = true;
+          }
+        } else if (isWayWithGeom && el.tags?.amenity === "hospital") {
+          const id = "hw" + el.id;
+          if (!overpassHospitalFeatures.has(id)) {
+            overpassHospitalFeatures.set(id, {
+              type: "Feature",
+              id,
+              geometry: { type: "Point", coordinates: [wayLon, wayLat] },
               properties: { name: el.tags.name || "病院" }
             });
             hospitalsChanged = true;
@@ -8740,6 +8809,21 @@
               type: "Feature",
               id,
               geometry: { type: "Point", coordinates: [el.lon, el.lat] },
+              properties: {
+                category: extraFacilityCategory,
+                subcategory: classifyExtraFacilitySubcategory(el.tags),
+                name: el.tags.name
+              }
+            });
+            facilitiesChanged = true;
+          }
+        } else if (isWayWithGeom && extraFacilityCategory) {
+          const id = "fw" + el.id;
+          if (!overpassFacilityFeatures.has(id)) {
+            overpassFacilityFeatures.set(id, {
+              type: "Feature",
+              id,
+              geometry: { type: "Point", coordinates: [wayLon, wayLat] },
               properties: {
                 category: extraFacilityCategory,
                 subcategory: classifyExtraFacilitySubcategory(el.tags),
@@ -8872,13 +8956,14 @@
         "circle-stroke-width": 1.5
       }
     });
-    // 基本地図データに含まれない施設（寺院・神社・道の駅・官公庁・警察・消防・銀行等）
-    // ※ ラベルの色分けと統一：道の駅＝青、警察署＝黒、消防署＝赤、専門学校等＝オレンジ、それ以外＝紫（点のみ。名称はLeaflet側で描画）
+    // 基本地図データに含まれない施設（寺院・神社・道の駅・官公庁・警察・消防・銀行・大型商業施設等）
+    // ※ ラベルの色分けと統一：道の駅＝青、警察署＝黒、消防署＝赤、専門学校等＝オレンジ、大型商業施設＝黄、それ以外＝紫（点のみ。名称はLeaflet側で描画）
     ensureDotIcon(mlMap, "dot_facility", "#6A5B8F");
     ensureDotIcon(mlMap, "dot_roadstation", "#1565c0");
     ensureDotIcon(mlMap, "dot_police", "#000000");
     ensureDotIcon(mlMap, "dot_firestation", "#e53935");
     ensureDotIcon(mlMap, "dot_school", "#ef6c00");
+    ensureDotIcon(mlMap, "dot_shopping", "#f9a825");
     mlMap.addLayer({
       id: "custom_facility_point",
       type: "symbol",
@@ -8891,6 +8976,7 @@
           "police", "dot_police",
           "fire_station", "dot_firestation",
           "college", "dot_school",
+          "shopping", "dot_shopping",
           "dot_facility"
         ],
         "icon-size": 0.9,
