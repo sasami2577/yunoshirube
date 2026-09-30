@@ -8066,8 +8066,10 @@
       });
       const seen = new Set();
       const TIER_BY_KIND = {
-        // ②: 美術館・博物館・動物園・空港・港・スタジアム・役場（市区町村役所）等
-        museum: 2, zoo: 2, aerodrome: 2, ferry_terminal: 2, stadium: 2, townhall: 2,
+        // ①: 空港・港
+        aerodrome: 1, ferry_terminal: 1,
+        // ②: 美術館・博物館・動物園・スタジアム・役場（市区町村役所）等
+        museum: 2, zoo: 2, stadium: 2, townhall: 2,
         // ③: 小中高等学校・大学・公園
         school: 3, university: 3, park: 3
         // 郵便局（post_office）は④（デフォルト）
@@ -8091,8 +8093,8 @@
   }
 
   // 優先度（数字が小さいほど優先＝重なった時に残る）
-  //  1: 駅／IC・JCT／交差点名
-  //  2: 病院／道の駅／水族館／バスターミナル／大型商業施設（モール・百貨店・大型スーパー）／美術館・博物館・動物園／空港・港・スタジアム／役場（市区町村役所） 等
+  //  1: 駅／IC・JCT／交差点名／空港／港／道の駅
+  //  2: 病院／水族館／バスターミナル／大型商業施設（モール・百貨店・大型スーパー）／美術館・博物館・動物園／スタジアム／役場（市区町村役所） 等
   //  3: 大学・専門学校・小中高等学校・公園／警察署／消防署
   //  4: 寺院・神社／公民館・コミュニティセンター／銀行／市場／スポーツセンター／ダム／郵便局／その他
   function renderOverlayLabelsOnLeaflet() {
@@ -8516,10 +8518,11 @@
   }
 
   // 主要施設ラベルの表示優先度（数字が小さいほど優先＝重なった時に残る）
-  // ①駅・IC/JCT・交差点名　②病院・道の駅・水族館・バスターミナル・大型商業施設等　③学校・警察・消防　④その他
+  // ①駅・IC/JCT・交差点名・空港・港・道の駅　②病院・水族館・バスターミナル・大型商業施設等　③学校・警察・消防　④その他
   function facilitySubcategoryTier(subcategory) {
     switch (subcategory) {
       case "roadstation":
+        return 1;
       case "aquarium":
       case "bus_station":
       case "shopping":
