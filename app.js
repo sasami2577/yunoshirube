@@ -8295,7 +8295,7 @@
 
   // 駅・鉄道路線などの取得済みデータをブラウザ内（localStorage）に保存しておき、
   // ページを再読み込みしても、一度読み込んだ範囲はゼロからやり直さずに済むようにする
-  const OVERPASS_CACHE_STORAGE_KEY = "yunoshirube_map_overpass_cache_v12";
+  const OVERPASS_CACHE_STORAGE_KEY = "yunoshirube_map_overpass_cache_v13";
 
   function loadOverpassCacheFromStorage() {
     try {
@@ -8471,11 +8471,25 @@
     return s || name;
   }
 
+  // 道の駅の判定。
+  // ※ 以前は`tags.michinoeki`タグの有無で判定していたが、実際のOSMデータでは
+  // 　このタグはほとんど使われておらず（道の駅はSA/PAと同じhighway=services／rest_areaで
+  // 　登録され、施設名に「道の駅」を含むのが実際の慣習）、それが原因で道の駅がほとんど
+  // 　検出できていなかった。そのため、michinoekiタグに加えて名称による判定も行う。
+  function isRoadstationTags(tags) {
+    if (!tags) return false;
+    if (tags.michinoeki) return true;
+    if ((tags.highway === "services" || tags.highway === "rest_area") && tags.name && tags.name.indexOf("道の駅") !== -1) {
+      return true;
+    }
+    return false;
+  }
+
   // Protomapsの基本地図データ（poisレイヤー）には含まれない施設カテゴリをOSMタグから判定する
   // ※ 保育園・幼稚園（kindergarten/childcare）は主要施設ラベルの対象外とする
   function classifyExtraFacility(tags) {
     if (!tags) return null;
-    if (tags.michinoeki) return "roadstation"; // 道の駅
+    if (isRoadstationTags(tags)) return "roadstation"; // 道の駅
     if (
       (tags.amenity === "place_of_worship" && (tags.religion === "buddhist" || tags.religion === "shinto")) ||
       tags.shop === "mall" ||
@@ -8501,7 +8515,7 @@
   // 主要施設ラベルの重なり対策（優先度付け）にはもう少し細かい種別が必要なため、別途判定する
   function classifyExtraFacilitySubcategory(tags) {
     if (!tags) return null;
-    if (tags.michinoeki) return "roadstation";
+    if (isRoadstationTags(tags)) return "roadstation";
     if (tags.amenity === "place_of_worship" && (tags.religion === "buddhist" || tags.religion === "shinto")) return "worship";
     if (tags.shop === "mall" || tags.shop === "department_store" || tags.shop === "supermarket") return "shopping";
     if (tags.amenity === "police") return "police";
@@ -8657,8 +8671,11 @@
       query += `node["name"]["junction"="yes"](${s},${w},${n},${e});`;
     }
     if (fetchRoadstations) {
-      // 道の駅（michinoeki）。施設全体が建物・敷地の範囲（way）として登録されていることも多いため、
-      // nodeだけでなくwayも取得する
+      // 道の駅は実際のOSMデータ上ではhighway=services／rest_area（高速道路のSA/PAと同じタグ）
+      // として登録され、名称に「道の駅」を含むのが実際の慣習のため、それで取得する
+      // （michinoekiタグはほぼ使われていないため、一応そちらも保険として残す）
+      query += `node["highway"~"^(services|rest_area)$"]["name"](${s},${w},${n},${e});`;
+      query += `way["highway"~"^(services|rest_area)$"]["name"](${s},${w},${n},${e});`;
       query += `node["michinoeki"]["name"](${s},${w},${n},${e});`;
       query += `way["michinoeki"]["name"](${s},${w},${n},${e});`;
     }
