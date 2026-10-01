@@ -8080,7 +8080,8 @@
         museum: 2, zoo: 2, stadium: 2, townhall: 2,
         // ③: 小中高等学校・大学・公園
         school: 3, university: 3, park: 3
-        // 郵便局（post_office）は④（デフォルト）
+        // 郵便局（post_office）は⑤（デフォルト）。数が非常に多く目立ちすぎるため、
+        // 他の④（その他）よりもさらに一段優先度を下げている
       };
       feats.forEach((f) => {
         const name = f.properties?.name;
@@ -8091,7 +8092,7 @@
         if (seen.has(key)) return;
         seen.add(key);
         const kind = f.properties?.kind;
-        const tier = TIER_BY_KIND[kind] ?? 4;
+        const tier = TIER_BY_KIND[kind] ?? 5;
         results.push({ name, lat, lon, tier, kind });
       });
     } catch (err) {
@@ -8104,7 +8105,8 @@
   //  1: 駅／IC・JCT／交差点名／空港／港／道の駅
   //  2: 病院／水族館／バスターミナル／大型商業施設（モール・百貨店・大型スーパー）／美術館・博物館・動物園／スタジアム／役場（市区町村役所） 等
   //  3: 大学・専門学校・小中高等学校・公園／警察署／消防署
-  //  4: 寺院・神社／公民館・コミュニティセンター／銀行／市場／スポーツセンター／ダム／郵便局／その他
+  //  4: 寺院・神社／公民館・コミュニティセンター／銀行／市場／スポーツセンター／ダム／その他
+  //  5: 郵便局（数が非常に多く目立ちすぎるため、他よりさらに優先度を下げている）
   function renderOverlayLabelsOnLeaflet() {
     if (!leafletMap || !window.L) return;
     if (!overpassLabelLeafletLayer) {
@@ -8199,6 +8201,10 @@
         name,
         lat,
         lon,
+        // 病院は実際の敷地が広く、構内の郵便局等（文字数が短く重なり判定の矩形も小さい）が
+        // 近くにあっても重なり判定上は干渉しないことがあるため、周囲に余白を広めに確保して
+        // 構内の施設より病院名を優先する
+        extraMarginPx: 55,
         render: (fontSizePx) =>
           `<div class="facility-label facility-label-hospital" style="font-size:${fontSizePx}px">${escapeHtml(name)}</div>`
       });
@@ -8279,8 +8285,11 @@
     const visible = [];
     sorted.forEach((g) => {
       const pt = leafletMap.project([g.lat, g.lon], zoom);
-      const halfW = (g.name.length * CHAR_WIDTH_PX + PADDING_X_PX) / 2 + MARGIN_PX;
-      const halfH = HEIGHT_PX / 2 + MARGIN_PX;
+      // extraMarginPx: 病院など、実際の敷地が広く構内の小さな施設より優先したいものに
+      // 追加の余白を持たせ、重なり判定の矩形を広げるためのオプション項目（未指定なら0）
+      const extraMargin = g.extraMarginPx || 0;
+      const halfW = (g.name.length * CHAR_WIDTH_PX + PADDING_X_PX) / 2 + MARGIN_PX + extraMargin;
+      const halfH = HEIGHT_PX / 2 + MARGIN_PX + extraMargin;
       const box = { x1: pt.x - halfW, y1: pt.y - halfH, x2: pt.x + halfW, y2: pt.y + halfH };
       const overlaps = placedBoxes.some(
         (p) => box.x1 < p.x2 && box.x2 > p.x1 && box.y1 < p.y2 && box.y2 > p.y1
@@ -8476,6 +8485,8 @@
     if (!name) return name;
     let s = stripInstitutionPrefix(name);
     s = s.replace(/(大学|医科大学)(?:医学部)?附属病院$/, "$1病院");
+    // 「中央病院」は地域では「県立中央病院」として呼ばれているため、この名称のみ表記を固定する
+    if (s === "中央病院") s = "県立中央病院";
     return s || name;
   }
 
@@ -8540,7 +8551,7 @@
   }
 
   // 主要施設ラベルの表示優先度（数字が小さいほど優先＝重なった時に残る）
-  // ①駅・IC/JCT・交差点名・空港・港・道の駅　②病院・水族館・バスターミナル・大型商業施設等　③学校・警察・消防　④その他
+  // ①駅・IC/JCT・交差点名・空港・港・道の駅　②病院・水族館・バスターミナル・大型商業施設等　③学校・警察・消防　④その他　⑤郵便局
   function facilitySubcategoryTier(subcategory) {
     switch (subcategory) {
       case "roadstation":
