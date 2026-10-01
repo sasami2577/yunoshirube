@@ -8047,6 +8047,14 @@
   // カテゴリ（美術館・博物館・動物園・小中高等学校・大学）も対象にするため、
   // そのためのmlMap参照を保持しておく（setupOverpassOverlay呼び出し時に設定）
   let currentMlMapForLabels = null;
+  // ズーム終了（zoomend）とタイル読み込み安定後（idle）の両方からラベル再描画がトリガーされるが、
+  // ピンチ操作などで両方が短時間に連続発生すると同じ重い処理が2回走ってしまうため、
+  // タイマーを共有し、短時間の連続発生を1回の再描画にまとめる
+  let overlayLabelRenderTimer = null;
+  function scheduleOverlayLabelRender(delayMs) {
+    clearTimeout(overlayLabelRenderTimer);
+    overlayLabelRenderTimer = setTimeout(() => renderOverlayLabelsOnLeaflet(), delayMs);
+  }
 
   // Protomaps基本地図データ（poisレイヤー）側にしかない「美術館・博物館・動物園・学校・大学」を、
   // 現在読み込み済みのタイルから取得する（範囲外や未読み込みタイルの分は対象外になる）
@@ -9020,17 +9028,16 @@
       overpassTimer = setTimeout(() => fetchOverpassOverlay(mlMap), 1400);
     });
     // ズームだけ変化した場合も、各種名称ラベルの表示・間引きを再計算する
+    // ※ ピンチ操作等で短時間に連続してzoomend・idleが発生すると、その都度
+    // 　重い再描画が走ってしまうため、タイマーを共有し少し待ってから1回だけ行う
     if (leafletMap && !leafletMap._overlayLabelZoomBound) {
       leafletMap._overlayLabelZoomBound = true;
-      leafletMap.on("zoomend", () => renderOverlayLabelsOnLeaflet());
+      leafletMap.on("zoomend", () => scheduleOverlayLabelRender(200));
     }
     // 美術館・博物館・動物園・学校・大学は基本地図データ（タイル）側から取得しているため、
-    // パン操作等で新しいタイルが読み込まれた後にも再計算する（読み込み安定後に1回だけ）
-    let poiIdleTimer = null;
-    mlMap.on("idle", () => {
-      clearTimeout(poiIdleTimer);
-      poiIdleTimer = setTimeout(() => renderOverlayLabelsOnLeaflet(), 400);
-    });
+    // パン操作等で新しいタイルが読み込まれた後にも再計算する（読み込み安定後に1回だけ。
+    // 　zoomendと連続発生した場合は上と同じタイマーにまとめられ、2回描画されるのを防ぐ）
+    mlMap.on("idle", () => scheduleOverlayLabelRender(400));
     } catch (err) {
       // ここで例外が起きるとレイヤーが一切追加されない（＝駅や鉄道まで含めて全部非表示になる）ため、
       // コンソールに詳細を出しておく
