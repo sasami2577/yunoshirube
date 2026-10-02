@@ -8314,7 +8314,7 @@
 
   // 駅・鉄道路線などの取得済みデータをブラウザ内（localStorage）に保存しておき、
   // ページを再読み込みしても、一度読み込んだ範囲はゼロからやり直さずに済むようにする
-  const OVERPASS_CACHE_STORAGE_KEY = "yunoshirube_map_overpass_cache_v14";
+  const OVERPASS_CACHE_STORAGE_KEY = "yunoshirube_map_overpass_cache_v15";
 
   function loadOverpassCacheFromStorage() {
     try {
@@ -8622,6 +8622,17 @@
     return [round(bbox[1]), round(bbox[0]), round(bbox[3]), round(bbox[2])].join(",");
   }
 
+  // 病院（zoom13〜）・交差点や大型商業施設等（zoom14〜）は、ズームレベルによって
+  // クエリに含まれる内容が変わる。そのため「取得済みセル」をズームを問わず1つのフラグで
+  // 管理していると、例えばズーム11〜12で一度訪れたセルは、その後どれだけズームインしても
+  // 病院や大型商業施設が一切取得されない（＝マップに反映されない）という不具合が起きていた。
+  // これを防ぐため、キャッシュキーに「どの段階まで取得済みか」を含める。
+  function overpassZoomTier(zoom) {
+    if (zoom >= 14) return 14; // 交差点・寺社・大型商業施設・警察消防等まで取得済み
+    if (zoom >= 13) return 13; // 病院まで取得済み
+    return 11; // 駅・鉄道・IC/JCT・道の駅のみ取得済み
+  }
+
   let overpassFetchInProgress = false; // 同時に複数のリクエストが飛んで重くなるのを防ぐ
 
   // 溜め込みすぎて描画が重くなるのを防ぐため、取得済みデータが一定量を超えたら
@@ -8665,7 +8676,9 @@
 
     const b = mlMap.getBounds();
     const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
-    const cellKey = overpassBboxKey(bbox);
+    // ズーム段階（11／13／14）ごとにキーを分けることで、低いズームで先に訪れたセルでも
+    // 後からズームインした時に病院・大型商業施設等が改めて取得されるようにする
+    const cellKey = overpassBboxKey(bbox) + "@" + overpassZoomTier(zoom);
     if (overpassFetchedCells.has(cellKey)) return;
     // ※ ここでは「取得済み」に登録しない。通信エラーやタイムアウトの際に
     // 　その範囲が永久に再取得されなくなる（＝鉄道が表示されないまま）不具合を防ぐため、
