@@ -8224,6 +8224,7 @@
       if (!coords || !rawName) return;
       const subcategory = f.properties?.subcategory;
       if (subcategory === "childcare") return; // 保育園・幼稚園は主要施設ラベルから除外する（古いキャッシュ対策）
+      if (subcategory === "bank" && isInsideOtherFacilityBranch(rawName)) return; // 施設内銀行は除外
       const [lon, lat] = coords;
       const name = subcategory === "college" ? simplifySchoolName(rawName) : rawName;
       const tier = facilitySubcategoryTier(subcategory);
@@ -8251,6 +8252,7 @@
       university: "facility-label-school"
     };
     getNativePoiLabelCandidates().forEach((n) => {
+      if (n.kind === "post_office" && isInsideOtherFacilityBranch(n.name)) return; // 施設内郵便局は除外
       const extraClass = NATIVE_POI_KIND_CLASS[n.kind] || "";
       const name = (n.kind === "school" || n.kind === "university") ? simplifySchoolName(n.name) : n.name;
       candidates.push({
@@ -8312,7 +8314,7 @@
 
   // 駅・鉄道路線などの取得済みデータをブラウザ内（localStorage）に保存しておき、
   // ページを再読み込みしても、一度読み込んだ範囲はゼロからやり直さずに済むようにする
-  const OVERPASS_CACHE_STORAGE_KEY = "yunoshirube_map_overpass_cache_v13";
+  const OVERPASS_CACHE_STORAGE_KEY = "yunoshirube_map_overpass_cache_v14";
 
   function loadOverpassCacheFromStorage() {
     try {
@@ -8449,6 +8451,14 @@
     let label = name || "";
     if (!/駅$/.test(label)) label += "駅";
     return label;
+  }
+
+  // 「◯◯病院内郵便局」「イオン◯◯店内郵便局」「◯◯内簡易郵便局」「◯◯内銀行」のように、
+  // 病院や商業施設などの構内（出張所・ATM等）にある郵便局・銀行は、独立した主要施設ではなく
+  // 親となる施設に付随するものなので、主要施設ラベルの対象外とする
+  function isInsideOtherFacilityBranch(name) {
+    if (!name) return false;
+    return /内(簡易)?郵便局$/.test(name) || /内銀行$/.test(name);
   }
 
   // 「学校法人◯◯学園」「独立行政法人◯◯機構」「◯◯県立」「◯◯市立」など、
@@ -8712,9 +8722,11 @@
       // ※ 道の駅（michinoeki）はTier1のためfetchRoadstations側で別途・より広域から取得済み
       query += `node["amenity"="place_of_worship"]["name"](${s},${w},${n},${e});`;
       // 大型スーパー・ショッピングセンター・ショッピングモール・百貨店
-      // ※ これらも建物の範囲（way）として登録されていることが多いため、nodeとwayの両方を取得する
-      query += `node["shop"~"^(mall|department_store|supermarket)$"]["name"](${s},${w},${n},${e});`;
-      query += `way["shop"~"^(mall|department_store|supermarket)$"]["name"](${s},${w},${n},${e});`;
+      // ※ これらも建物の範囲（way）として登録されていることが多いため、nodeとwayの両方を取得する。
+      // 　また、個別の店舗名（name）ではなく系列名（brand）しか登録されていない地点も
+      // 　取りこぼさないよう、["name"]条件は付けずに取得し、名前の判定はJS側で行う
+      query += `node["shop"~"^(mall|department_store|supermarket)$"](${s},${w},${n},${e});`;
+      query += `way["shop"~"^(mall|department_store|supermarket)$"](${s},${w},${n},${e});`;
       query += `node["amenity"~"^(police|fire_station|college|community_centre|bank|bus_station|marketplace)$"]["name"](${s},${w},${n},${e});`;
       query += `node["leisure"="sports_centre"]["name"](${s},${w},${n},${e});`;
       query += `node["tourism"="aquarium"]["name"](${s},${w},${n},${e});`;
@@ -8769,8 +8781,11 @@
           wayLon = el.geometry.reduce((sum, pt) => sum + pt.lon, 0) / el.geometry.length;
           wayLat = el.geometry.reduce((sum, pt) => sum + pt.lat, 0) / el.geometry.length;
         }
+        // 個別の店舗名（name）が無く、系列名（brand）しか登録されていない地点も
+        // 名無しとして捨ててしまわずに、brandタグで代用して表示できるようにする
+        const facilityName = el.tags?.name || el.tags?.brand || null;
         const extraFacilityCategory =
-          (el.type === "node" || isWayWithGeom) && el.tags?.name ? classifyExtraFacility(el.tags) : null;
+          (el.type === "node" || isWayWithGeom) && facilityName ? classifyExtraFacility(el.tags) : null;
 
         if (el.type === "node" && el.tags?.amenity === "hospital") {
           const id = "h" + el.id;
@@ -8860,7 +8875,7 @@
               properties: {
                 category: extraFacilityCategory,
                 subcategory: classifyExtraFacilitySubcategory(el.tags),
-                name: el.tags.name
+                name: facilityName
               }
             });
             facilitiesChanged = true;
@@ -8875,7 +8890,7 @@
               properties: {
                 category: extraFacilityCategory,
                 subcategory: classifyExtraFacilitySubcategory(el.tags),
-                name: el.tags.name
+                name: facilityName
               }
             });
             facilitiesChanged = true;
