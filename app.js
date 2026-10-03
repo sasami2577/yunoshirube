@@ -8258,6 +8258,34 @@
       });
     });
 
+    // ---- 手動追加の施設（OpenStreetMap側にタグが無い／不足している店舗等を、config.jsで直接指定） ----
+    // config.js の window.ONSEN_MANUAL_FACILITIES に { name, lat, lon, category } を追加すると、
+    // OSMのタグ付け状況に関係なく常に主要施設ラベルとして表示される。
+    const MANUAL_FACILITY_TIER = { shopping: 2, hospital: 2, school: 3, other: 4 };
+    const MANUAL_FACILITY_CLASS = {
+      shopping: "facility-label-shopping",
+      hospital: "facility-label-hospital",
+      school: "facility-label-school",
+      other: ""
+    };
+    (window.ONSEN_MANUAL_FACILITIES || []).forEach((f) => {
+      if (!f || !f.name || typeof f.lat !== "number" || typeof f.lon !== "number") return;
+      const category = MANUAL_FACILITY_CLASS.hasOwnProperty(f.category) ? f.category : "other";
+      const tier = MANUAL_FACILITY_TIER[category];
+      const extraClass = MANUAL_FACILITY_CLASS[category];
+      candidates.push({
+        tier,
+        subTier: 5,
+        weight: 0,
+        name: f.name,
+        lat: f.lat,
+        lon: f.lon,
+        extraMarginPx: category === "hospital" ? 55 : 0,
+        render: (fontSizePx) =>
+          `<div class="facility-label${extraClass ? " " + extraClass : ""}" style="font-size:${fontSizePx}px">${escapeHtml(f.name)}</div>`
+      });
+    });
+
     // ---- ②③④: 美術館・博物館・動物園・学校・大学・公園・郵便局・役場・空港・港等（Protomaps基本地図データ由来） ----
     const NATIVE_POI_KIND_CLASS = {
       park: "facility-label-park",
