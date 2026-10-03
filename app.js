@@ -7962,7 +7962,24 @@
       source: poisLayerDef.source,
       "source-layer": poisLayerDef["source-layer"],
       minzoom: 11, // 元のpoisレイヤーより広い範囲（少しズームアウトした状態）から表示する
-      filter: ["in", ["get", "kind"], ["literal", EMPHASIZED_POI_KINDS]],
+      // ※ 文字ラベル（text-field）はこのレイヤーでは常に非表示にし、Leaflet側
+      // 　（renderOverlayLabelsOnLeaflet / isInsideOtherFacilityBranch）で除外した
+      // 　「簡易郵便局」「◯◯内郵便局」等も、この点（アイコン）レイヤー自体は
+      // 　kindのみでフィルタしていたため点だけ残って見える不具合があった。
+      // 　そのため、このレイヤーの表示条件にも同じ除外ルールを反映する。
+      filter: [
+        "all",
+        ["in", ["get", "kind"], ["literal", EMPHASIZED_POI_KINDS]],
+        ["!", [
+          "all",
+          ["==", ["get", "kind"], "post_office"],
+          ["any",
+            ["in", "簡易郵便局", ["coalesce", ["get", "name"], ""]],
+            ["in", "内郵便局", ["coalesce", ["get", "name"], ""]],
+            ["in", "ヤマト運輸", ["coalesce", ["get", "name"], ""]]
+          ]
+        ]]
+      ],
       layout: {
         "icon-image": [
           "match", ["get", "kind"],
