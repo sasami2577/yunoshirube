@@ -8331,7 +8331,7 @@
 
   // 駅・鉄道路線などの取得済みデータをブラウザ内（localStorage）に保存しておき、
   // ページを再読み込みしても、一度読み込んだ範囲はゼロからやり直さずに済むようにする
-  const OVERPASS_CACHE_STORAGE_KEY = "yunoshirube_map_overpass_cache_v15";
+  const OVERPASS_CACHE_STORAGE_KEY = "yunoshirube_map_overpass_cache_v16";
 
   function loadOverpassCacheFromStorage() {
     try {
@@ -8823,7 +8823,12 @@
         const extraFacilityCategory =
           (el.type === "node" || isWayWithGeom) && facilityName ? classifyExtraFacility(el.tags) : null;
 
-        if (el.type === "node" && el.tags?.amenity === "hospital") {
+        // OSM上では「amenity=hospital」が病院の建物・敷地全体ではなく、院内の郵便局
+        // （簡易郵便局の窓口等）に誤ってタグ付けされているケースがあり、その場合
+        // name タグが「◯◯病院内簡易郵便局」のようになる。これをそのまま病院名として
+        // 採用すると、本来の病院名より郵便局の名前が優先表示されてしまうため除外する。
+        const hospitalNameLooksLikePostOffice = el.tags?.name && el.tags.name.indexOf("郵便局") !== -1;
+        if (el.type === "node" && el.tags?.amenity === "hospital" && !hospitalNameLooksLikePostOffice) {
           const id = "h" + el.id;
           if (!overpassHospitalFeatures.has(id)) {
             overpassHospitalFeatures.set(id, {
@@ -8834,7 +8839,7 @@
             });
             hospitalsChanged = true;
           }
-        } else if (isWayWithGeom && el.tags?.amenity === "hospital") {
+        } else if (isWayWithGeom && el.tags?.amenity === "hospital" && !hospitalNameLooksLikePostOffice) {
           const id = "hw" + el.id;
           if (!overpassHospitalFeatures.has(id)) {
             overpassHospitalFeatures.set(id, {
