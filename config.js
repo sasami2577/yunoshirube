@@ -91,6 +91,10 @@ window.ONSEN_ROAD_COLOR_CONFIG = {
   3. 1つ目の数字がlat、2つ目の数字がlonです
 */
 window.ONSEN_MANUAL_FACILITIES = [
-  { name: "高島屋 米子店", lat: 35.4317623, lon: 133.3329508, category: "shopping" }
+  { name: "高島屋 米子店", lat: 35.4317623, lon: 133.3329508, category: "shopping" },
+  { name: "イオンモール出雲", lat: 35.3680241, lon: 132.7386577, category: "shopping" },
+  { name: "ゆめタウン出雲", lat: 35.3771781, lon: 132.7552422, category: "shopping" },
+  { name: "イオン松江ショッピングセンター", lat: 35.4635966, lon: 133.0695562, category: "shopping" },
+  { name: "米子しんまち天満屋", lat: 35.4405341, lon: 133.3411845, category: "shopping" }
   // ここに追加していけます（末尾のカンマを忘れずに）
 ];
